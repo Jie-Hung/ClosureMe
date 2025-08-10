@@ -1,0 +1,534 @@
+/* =========================================================
+   [全域設定 Global Reset & 基礎樣式]
+   ========================================================= */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: "Segoe UI", sans-serif;
+}
+
+body {
+  background-color: #f8f1e4;
+  display: flex;
+  flex-direction: column;
+}
+
+/* =========================================================
+   [頂部導覽列 Top Bar]
+   ========================================================= */
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 36px;
+  background-color: #f8f1e4;
+  border-bottom: 2px solid #ddd;
+}
+
+/* Logo 區塊設定 */
+.logo {
+  display: flex;
+  align-items: center;
+}
+
+/* Logo 區塊設定 */
+.logo-img {
+  height: 60px;
+  width: auto;
+}
+
+/* 說明按鈕圖示 */
+.help-icon {
+  height: 25px;
+  width: 25px;
+  margin-left: 8px;
+  margin-top: 10px;
+  cursor: pointer;
+}
+
+/* =========================================================
+   [主體容器 Main Layout]
+   ========================================================= */
+.main-container {
+  flex: 1;
+  display: flex;
+  padding: 32px;
+  gap: 32px;
+  min-height: 0;
+}
+
+/* =========================================================
+   [左側展示區 Display Area]
+   ========================================================= */
+/* 圖片展示區設定 */
+.display-area {
+  flex: 1;
+  border: 4px solid #ddd;
+  border-radius: 10px;
+  background: #fffaf0;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  perspective: 1200px;
+}
+
+/* 圖片翻轉容器樣式 */
+.display-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.8s ease;
+  transform-style: preserve-3d;
+  cursor: pointer;
+}
+
+.display-wrapper.flipped {
+  transform: rotateY(180deg);
+}
+
+.display-front {
+  z-index: 2;
+}
+
+.display-wrapper img {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* 背景模糊層 */
+.bg-blur {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(20px) brightness(0.9);
+  transform: scale(1.1);
+  z-index: 0;
+}
+
+/* 前景圖層 */
+.fg-image {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: auto;
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  z-index: 1;
+}
+
+/* =========================================================
+   [右側選擇區 Select Cards]
+   ========================================================= */
+/* 卡片選擇區樣式 */
+.select-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* 容器樣式 */
+.select-group {
+  background: #fff;
+  padding: 16px;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* 標題樣式 */
+.select-header {
+  font-size: 16px;
+  margin-bottom: 12px;
+  font-weight: normal;
+}
+
+/* 橫向滾動區塊 */
+.select-scroll {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 12px;
+  padding-bottom: 4px;
+  scroll-behavior: smooth;
+  max-width: 100%;
+}
+
+.select-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.select-scroll::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 4px;
+}
+
+/* 單一卡片樣式（包含圖片）*/
+.select-card {
+  flex: 0 0 calc((100% - 5 * 12px) / 6);
+  height: 80px;
+  background: #fff;
+  border: 2px solid #ccc;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  user-select: none;
+}
+
+.select-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.select-card.selected {
+  border-color: #38bdf8;
+  box-shadow: 0 0 16px 5px rgba(56, 189, 248, 0.7);
+}
+
+.select-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+}
+
+/* 新增卡片按鈕樣式 */
+.add-card {
+  flex: 0 0 calc((100% - 5 * 12px) / 6);
+  height: 80px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  background: #e0e0e0;
+  border-radius: 6px;
+  color: #666;
+  text-decoration: none;
+  font-size: 24px;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+
+.add-card:hover {
+  background: #ccc;
+}
+
+/* =========================================================
+   [操作按鈕 Buttons]
+   ========================================================= */
+.generate-btn,
+.files-btn {
+  margin-top: 0;
+  padding: 14px 20px;
+  font-size: 18px;
+  font-weight: bold;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.3s, transform 0.2s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 「開始生成」按鈕樣式 */
+.generate-btn {
+  background: #007b55;
+}
+
+.generate-btn:hover {
+  background: #006446;
+  transform: scale(1.03);
+}
+
+/* 「檔案管理」按鈕樣式 */
+.files-btn {
+  background: #da930f;
+}
+
+.files-btn:hover {
+  background: #c58300;
+  transform: scale(1.03);
+}
+
+/* =========================================================
+   [翻轉卡片效果 Flip Card]
+   ========================================================= */
+/* 設定整體翻轉容器視角與大小 */
+.flip-container {
+  perspective: 1500px;
+  /* 設定3D視角深度 */
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  /* 滑鼠變成指標，提示可點擊 */
+}
+
+/* 翻轉卡片外層：控制翻轉動畫 */
+.flip-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.8s ease;
+  /* 翻轉過渡動畫 */
+  transform-style: preserve-3d;
+  /* 保留三維效果 */
+}
+
+/* 翻轉卡片內層：實際進行翻轉的元素 */
+.flip-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.8s;
+  cursor: pointer;
+}
+
+/* 加上 flipped 類別時，翻轉 180 度 */
+.flip-card-inner.flipped {
+  transform: rotateY(180deg);
+}
+
+.flip-card.flipped {
+  transform: rotateY(180deg);
+}
+
+/* 卡片的面：前面與背面通用設定 */
+.card-face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  /* 翻過來時不顯示反面 */
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* 前面卡片面：預設顯示在上層 */
+.card-front {
+  z-index: 2;
+}
+
+/* 背面卡片面：翻轉 180 度、設定背景與內容配置 */
+.card-back {
+  transform: rotateY(180deg);
+  background-color: #fffaf0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 24px;
+  color: #333;
+  z-index: 1;
+}
+
+/* 描述輸入框：提供文字輸入介面 */
+.description-input {
+  width: 90%;
+  height: 120px;
+  margin: 16px 0;
+  font-size: 16px;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  resize: none;
+  /* 禁用大小拖曳 */
+}
+
+/* 儲存描述按鈕：設計樣式與互動效果 */
+.save-description-btn {
+  padding: 10px 20px;
+  font-size: 16px;
+  background-color: #007b55;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.save-description-btn:hover {
+  background-color: #005f3f;
+  /* 滑鼠移上時變色 */
+}
+
+/* 模糊背景區塊：提供視覺模糊效果並加強焦點 */
+.blur-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(20px) brightness(0.85);
+  /* 模糊 + 調暗 */
+  transform: scale(1.1);
+  /* 放大略微溢出邊界 */
+  z-index: 0;
+  /* 在最底層 */
+}
+
+/* 背面卡片實際內容區塊：半透明背景與文字排版 */
+.back-content {
+  position: relative;
+  z-index: 2;
+  background: rgba(255, 250, 240, 0.85);
+  border-radius: 16px;
+  padding: 32px;
+  width: 100%;
+  height: 100%;
+  max-height: 350px;
+  max-width: 1000px;
+  text-align: center;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 背面卡片標題 */
+.back-content h2 {
+  font-size: 24px;
+  margin-bottom: 16px;
+  color: #4e342e;
+}
+
+/* 背面卡片段落文字 */
+.back-content p {
+  font-size: 18px;
+  line-height: 1.8;
+  color: #444;
+}
+
+/* ✅ 模態背景 */
+.desc-modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+/* ✅ 內容區 */
+.modal-content {
+  padding: 24px;
+  width: 60%;
+  max-width: 800px;
+  max-height: 80%;
+  overflow-y: auto;
+  border-radius: 20px;
+  background: #fff7eb;
+  border: 4px solid #c9b89c;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  position: relative;
+  font-family: "Segoe UI", sans-serif;
+}
+
+/* ✅ 標題風格 */
+.modal-content::before {
+  content: "完整記憶";
+  display: block;
+  font-size: 20px;
+  font-weight: bold;
+  color: #5a452c;
+  margin-bottom: 12px;
+}
+
+/* ✅ 關閉按鈕 */
+.close-btn {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  font-size: 20px;
+  color: #5a452c;
+  background: #f3ece3;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.close-btn:hover {
+  background: #e0d7ca;
+}
+
+/* ✅ 文字內容 */
+#descFullText {
+  font-size: 16px;
+  color: #333;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.view-more-btn {
+  margin-top: 12px;
+  background: #a08c59;
+  color: white;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* ✅ 自訂滾動條（僅限 WebKit，Chrome / Edge / Safari） */
+.modal-content::-webkit-scrollbar {
+  width: 10px;
+  /* 滾動條寬度 */
+}
+
+.modal-content::-webkit-scrollbar-track {
+  background: #fdf7f0;
+  /* 滾動條軌道顏色（與背景一致） */
+  border-radius: 10px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+  background-color: #d3c7b6;
+  /* 滾動條滑塊顏色 */
+  border-radius: 10px;
+  border: 2px solid #fdf7f0;
+  /* 讓滑塊和背景有分隔感 */
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+  background-color: #b9a88d;
+  /* hover 效果 */
+}
+
+.logout-btn {
+  position: absolute;
+  top: 35px;
+  right: 36px;
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.logout-btn:hover {
+  background-color: #c0392b;
+}

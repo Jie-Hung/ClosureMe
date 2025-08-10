@@ -1,0 +1,49 @@
+<!-- upload_char.html -->
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人物上傳</title>
+    <link rel="stylesheet" href="../css/toast.css">
+    <link rel="stylesheet" href="../css/characters.css">
+</head>
+
+<body>
+    <div class="upload-container">
+        <h1>上傳人物角色</h1>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <!-- 圖片上傳 -->
+            <div class="upload-section">
+                <label for="charImage">選擇圖片：</label>
+                <input type="file" id="charImage" name="file" accept="image/*" required>
+                <div id="preview" class="preview-box">預覽區域</div>
+            </div>
+
+            <!-- 外觀描述 -->
+            <div class="input-section">
+                <label for="profile">外觀描述：</label>
+                <textarea id="profile" name="preview" placeholder="描述角色的外觀..." required></textarea>
+            </div>
+
+            <!-- 記憶描述 -->
+            <div class="input-section">
+                <label for="memory">記憶描述：</label>
+                <textarea id="memory" name="memory" placeholder="描述角色的記憶..." required></textarea>
+            </div>
+
+            <label for="voice">上傳語音</label>
+            <input type="file" id="voice" name="voice" accept=".wav" />
+
+            <button type="submit" class="submit-btn">送出</button>
+        </form>
+        <p id="statusMessage" class="status"></p>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="/utils/toast.js"></script>
+    <script src="../js/characters.js"></script>
+</body>
+
+</html>
