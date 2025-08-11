@@ -1,26 +1,32 @@
-// 主伺服器入口
+// server.js
 const express = require('express');
 const path = require('path');
 const setupRoutes = require('./setupRoutes');
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// 靜態資源
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 預設首頁導向登入頁
-app.get('/healthz', (_req, res) => res.send('ok'));
-app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "auth", "html", "login.html"));
+app.get('/healthz', (_req, res) => res.send('ok')); 
+
+const pool = require('./src/models/db');
+app.get('/debug/db', async (_req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT NOW() as now');
+    res.json({ ok: true, now: rows[0].now });
+  } catch (err) {
+    console.error('DB connection error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
-// 掛載路由
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "auth", "html", "login.html"));
+});
+
 setupRoutes(app);
 
-// 啟動伺服器
-app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server is running on port http://localhost:${PORT}`));
+

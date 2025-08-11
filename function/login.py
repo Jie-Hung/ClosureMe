@@ -1,7 +1,7 @@
 import requests
 
 def login(identifier, password):
-    res = requests.post("http://localhost:3000/api/login", json={
+    res = requests.post("https://closureme.onrender.com/api/login", json={
         "identifier": identifier,
         "password": password
     })
