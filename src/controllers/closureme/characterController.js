@@ -34,11 +34,6 @@ async function getUniqueFileNameFromDB(baseName, ext) {
 
 // 上傳
 exports.upload = async (req, res) => {
-    /*
-    if (process.env.STORAGE_MODE !== 'local' && process.env.NODE_ENV === 'production') {
-        return res.status(501).json({ message: 'Upload disabled in production.' });
-    }
-    */
     try {
         const { profile, memory, filename } = req.body;
         const user_id = req.user_id;
@@ -49,13 +44,9 @@ exports.upload = async (req, res) => {
         let mainImageId = null;
         let mainImagePath = null;
 
-        if (!user_id) {
-            return res.status(401).json({ message: "未授權存取" });
-        }
-
-        if (!files || !profile || !memory || !filename) {
+        if (!user_id) return res.status(401).json({ message: "未授權存取" });
+        if (!files || !profile || !memory || !filename)
             return res.status(400).json({ message: "缺少必要資料" });
-        }
 
         const cleanName = filename.replace(/[<>:"/\\|?*]+/g, "");
         const uploadDir = path.join(__dirname, "../../../public/uploads");
@@ -63,18 +54,30 @@ exports.upload = async (req, res) => {
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             const ext = path.extname(file.originalname).toLowerCase();
-            const originalName = path.basename(file.originalname, path.extname(file.originalname)); // 取得無副檔名的原始名稱
-            const baseName = cleanName || originalName; // 若 cleanName 是你輸入的角色名
+            const originalName = path.basename(file.originalname, ext);
+            const baseName = cleanName || originalName;
             const base = i === 0 ? baseName : `${baseName}(${i})`;
             const uniqueName = await getUniqueFileNameFromDB(base, ext);
-            const savePath = path.join(uploadDir, uniqueName);
-            await fs.rename(file.path, savePath);
+            const s3Key = `uploads/${uniqueName}`;
+            const filePath = `/uploads/${uniqueName}`;
 
-            const relativePath = `/uploads/${uniqueName}`;
+            let finalPath;
+
+            if (MODE === "s3") {
+                finalPath = await uploadBufferToS3({
+                    buffer: file.buffer || await fs.readFile(file.path),
+                    key: s3Key,
+                    contentType: file.mimetype || "application/octet-stream"
+                });
+            } else {
+                const savePath = path.join(uploadDir, uniqueName);
+                await fs.rename(file.path, savePath);
+                finalPath = filePath;
+            }
 
             const imgResult = await pool.query(
                 `INSERT INTO char_images (user_id, file_name, file_path) VALUES ($1, $2, $3) RETURNING id`,
-                [user_id, uniqueName, relativePath]
+                [user_id, uniqueName, finalPath]
             );
 
             const imageId = imgResult.rows[0].id;
@@ -82,47 +85,63 @@ exports.upload = async (req, res) => {
 
             if (i === 0) {
                 mainImageId = imageId;
-                mainImagePath = relativePath;
+                mainImagePath = finalPath;
             }
         }
 
-        const profileJson = {
-            type: "profile",
-            content: profile
-        };
-        const memoryJson = {
-            type: "memory",
-            content: memory
-        };
+        const profileJson = { type: "profile", content: profile };
+        const memoryJson = { type: "memory", content: memory };
 
         const profileFileName = await getUniqueFileNameFromDB(`${cleanName}_profile`, ".json");
         const memoryFileName = await getUniqueFileNameFromDB(`${cleanName}_memory`, ".json");
 
-        const profilePath = path.join(uploadDir, profileFileName);
-        const memoryPath = path.join(uploadDir, memoryFileName);
+        const profileBuffer = Buffer.from(JSON.stringify(profileJson, null, 2));
+        const memoryBuffer = Buffer.from(JSON.stringify(memoryJson, null, 2));
 
-        await fs.writeFile(profilePath, JSON.stringify(profileJson, null, 2));
-        await fs.writeFile(memoryPath, JSON.stringify(memoryJson, null, 2));
+        let profileFilePath, memoryFilePath;
 
-        const profileFilePath = `/uploads/${profileFileName}`;
-        const memoryFilePath = `/uploads/${memoryFileName}`;
+        if (MODE === "s3") {
+            profileFilePath = await uploadBufferToS3({
+                buffer: profileBuffer,
+                key: `uploads/${profileFileName}`,
+                contentType: "application/json"
+            });
+            memoryFilePath = await uploadBufferToS3({
+                buffer: memoryBuffer,
+                key: `uploads/${memoryFileName}`,
+                contentType: "application/json"
+            });
+        } else {
+            const profilePath = path.join(uploadDir, profileFileName);
+            const memoryPath = path.join(uploadDir, memoryFileName);
+            await fs.writeFile(profilePath, profileBuffer);
+            await fs.writeFile(memoryPath, memoryBuffer);
+            profileFilePath = `/uploads/${profileFileName}`;
+            memoryFilePath = `/uploads/${memoryFileName}`;
+        }
 
-        await pool.query(
-            `INSERT INTO char_profile (image_id, file_path) VALUES ($1, $2)`,
-            [mainImageId, profileFilePath]
-        );
-        await pool.query(
-            `INSERT INTO char_memory (image_id, file_path) VALUES ($1, $2)`,
-            [mainImageId, memoryFilePath]
-        );
+        await pool.query(`INSERT INTO char_profile (image_id, file_path) VALUES ($1, $2)`, [mainImageId, profileFilePath]);
+        await pool.query(`INSERT INTO char_memory (image_id, file_path) VALUES ($1, $2)`, [mainImageId, memoryFilePath]);
 
         if (voice) {
             const voiceExt = path.extname(voice.originalname).toLowerCase();
             const voiceFileName = await getUniqueFileNameFromDB(`${cleanName}_voice`, voiceExt);
-            const voicePath = path.join(uploadDir, voiceFileName);
-            await fs.rename(voice.path, voicePath);
+            const voiceBuffer = voice.buffer || await fs.readFile(voice.path);
 
-            const voiceFilePath = `/uploads/${voiceFileName}`;
+            let voiceFilePath;
+
+            if (MODE === "s3") {
+                voiceFilePath = await uploadBufferToS3({
+                    buffer: voiceBuffer,
+                    key: `uploads/${voiceFileName}`,
+                    contentType: voice.mimetype || "audio/wav"
+                });
+            } else {
+                const voicePath = path.join(uploadDir, voiceFileName);
+                await fs.rename(voice.path, voicePath);
+                voiceFilePath = `/uploads/${voiceFileName}`;
+            }
+
             await pool.query(
                 `INSERT INTO char_voice (image_id, file_path) VALUES ($1, $2)`,
                 [mainImageId, voiceFilePath]
