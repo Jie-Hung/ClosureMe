@@ -3,6 +3,8 @@ const fs = require("fs").promises;
 const fsSync = require("fs");
 const path = require("path");
 const pool = require("../../models/db");
+const { deleteFileOnS3 } = require("../../storage");
+const { MODE, renameFileOnS3 } = require("../../storage");
 
 // 顯示上傳的所有檔案資訊（圖、外觀、記憶），用於檔案管理頁
 exports.getFiles = async (req, res) => {
@@ -83,125 +85,83 @@ exports.getCharacters = async (req, res) => {
 
 // 刪除角色資料
 exports.deleteCharacter = async (req, res) => {
-    const { fileName } = req.body;
-    if (!fileName) {
-        return res.status(400).json({ message: "請提供角色名稱" });
-    }
-
+    const fileName = req.body.fileName;
     try {
-        // 找出對應檔案（模糊比對）
-        const pattern = `^${fileName}(\\(\\d+\\))?\\.[a-zA-Z0-9]+$`;
         const imageResult = await pool.query(
-            `SELECT * FROM char_images WHERE LOWER(file_name) ~ LOWER($1)`,
-            [pattern]
+            "SELECT * FROM char_images WHERE file_name ILIKE $1",
+            [`${fileName}.%`]
         );
-
         if (imageResult.rows.length === 0) {
-            return res.status(404).json({ message: "查無對應角色" });
+            return res.status(404).json({ message: "找不到該角色" });
         }
 
-        for (const image of imageResult.rows) {
-            const imageId = image.id;
-            const allPaths = [image.file_path];
+        const image = imageResult.rows[0];
 
-            const profileRes = await pool.query("SELECT file_path FROM char_profile WHERE image_id = $1", [imageId]);
-            const memoryRes = await pool.query("SELECT file_path FROM char_memory WHERE image_id = $1", [imageId]);
-            const voiceRes = await pool.query("SELECT file_path FROM char_voice WHERE image_id = $1", [imageId]);
+        if (MODE === "s3") {
+            const deleteKey = (url) => {
+                return url.replace(process.env.AWS_S3_PUBLIC_BASE + "/", "");
+            };
 
-            if (profileRes.rows[0]) allPaths.push(profileRes.rows[0].file_path);
-            if (memoryRes.rows[0]) allPaths.push(memoryRes.rows[0].file_path);
-            if (voiceRes.rows[0]) allPaths.push(voiceRes.rows[0].file_path);
-
-            // 刪除實體檔案
-            for (const filePath of allPaths) {
-                const fullPath = path.join(__dirname, "../../../public", filePath);
-                if (fsSync.existsSync(fullPath)) {
-                    fsSync.unlinkSync(fullPath);
-                    console.log("✅ 已刪除檔案：", fullPath);
-                } else {
-                    console.warn("⚠️ 找不到實體檔案：", fullPath);
-                }
-            }
-
-            // 刪除資料庫紀錄
-            await pool.query("DELETE FROM char_images WHERE id = $1", [imageId]);
+            await Promise.all([
+                deleteFileOnS3(deleteKey(image.file_path)),
+                pool.query("DELETE FROM char_profile WHERE image_id = $1", [image.id]),
+                pool.query("DELETE FROM char_memory WHERE image_id = $1", [image.id]),
+                pool.query("DELETE FROM char_voice WHERE image_id = $1", [image.id]),
+            ]);
+        } else {
+            const localPath = path.join(__dirname, "../../../public", image.file_path);
+            if (fsSync.existsSync(localPath)) await fs.unlink(localPath);
+            await pool.query("DELETE FROM char_profile WHERE image_id = $1", [image.id]);
+            await pool.query("DELETE FROM char_memory WHERE image_id = $1", [image.id]);
+            await pool.query("DELETE FROM char_voice WHERE image_id = $1", [image.id]);
         }
 
-        return res.status(200).json({ message: "刪除成功" });
-    } catch (error) {
-        console.error("❌ 刪除錯誤：", error);
-        return res.status(500).json({ message: "伺服器錯誤" });
+        await pool.query("DELETE FROM char_images WHERE id = $1", [image.id]);
+
+        res.json({ message: "角色已刪除" });
+    } catch (err) {
+        console.error("刪除錯誤：", err);
+        res.status(500).json({ message: "伺服器錯誤" });
     }
 };
 
 // 重新命名
 exports.renameCharacter = async (req, res) => {
-    const { fileName, newName } = req.body;
-
-    if (!fileName || !newName || /[<>:"/\\|?*]/.test(newName)) {
-        return res.status(400).json({ message: "請提供合法的原始名稱與新名稱，且勿包含特殊字元" });
-    }
-
+    const { oldName, newName } = req.body;
     try {
-        const pattern = `^${fileName}(\\(\\d+\\))?\\.[a-zA-Z0-9]+$`;
-        const result = await pool.query(`
-            SELECT ci.id, ci.file_name AS old_image_name, ci.file_path AS old_image_path,
-                   ca.file_path AS old_profile_path, cm.file_path AS old_memory_path,
-                   cv.file_path AS old_voice_path
-            FROM char_images ci
-            LEFT JOIN char_profile ca ON ci.id = ca.image_id
-            LEFT JOIN char_memory cm ON ci.id = cm.image_id
-            LEFT JOIN char_voice cv ON ci.id = cv.image_id
-            WHERE LOWER(ci.file_name) ~ LOWER($1)
-        `, [pattern]);
+        const result = await pool.query(
+            "SELECT * FROM char_images WHERE file_name ILIKE $1",
+            [`${oldName}.%`]
+        );
 
         if (result.rows.length === 0) {
-            return res.status(404).json({ message: "查無對應角色" });
+            return res.status(404).json({ message: "找不到該角色" });
         }
 
-        const uploadDir = path.join(process.cwd(), "public", "uploads");
+        const image = result.rows[0];
+        const ext = path.extname(image.file_name);
+        const newFileName = `${newName}${ext}`;
+        const newFilePath = image.file_path.replace(oldName, newName);
 
-        for (const row of result.rows) {
-            const ext = path.extname(row.old_image_name);
-            const suffixMatch = row.old_image_name.match(/\(\d+\)/);
-            const suffix = suffixMatch ? suffixMatch[0] : "";
-
-            const newImageName = `${newName}${suffix}${ext}`;
-            const newProfileName = `${newName}${suffix}_profile.json`;
-            const newMemoryName = `${newName}${suffix}_memory.json`;
-            const newVoiceName = `${newName}${suffix}.wav`;
-
-            // 計算新路徑
-            const newImagePath = path.join(uploadDir, newImageName);
-            const newProfilePath = path.join(uploadDir, newProfileName);
-            const newMemoryPath = path.join(uploadDir, newMemoryName);
-            const newVoicePath = path.join(uploadDir, newVoiceName);
-
-            // 移動檔案
-            await fs.rename(path.join(process.cwd(), "public", row.old_image_path), newImagePath);
-            if (row.old_profile_path) await fs.rename(path.join(process.cwd(), "public", row.old_profile_path), newProfilePath);
-            if (row.old_memory_path) await fs.rename(path.join(process.cwd(), "public", row.old_memory_path), newMemoryPath);
-            if (row.old_voice_path) await fs.rename(path.join(process.cwd(), "public", row.old_voice_path), newVoicePath);
-
-            // 資料庫更新
-            await pool.query(`UPDATE char_images SET file_name=$1, file_path=$2 WHERE id=$3`,
-                [newImageName, `/uploads/${newImageName}`, row.id]);
-            await pool.query(`UPDATE char_profile SET file_path=$1 WHERE image_id=$2`,
-                [`/uploads/${newProfileName}`, row.id]);
-            await pool.query(`UPDATE char_memory SET file_path=$1 WHERE image_id=$2`,
-                [`/uploads/${newMemoryName}`, row.id]);
-            await pool.query(`UPDATE char_voice SET file_path=$1 WHERE image_id=$2`,
-                [`/uploads/${newVoiceName}`, row.id]);
+        if (MODE === "s3") {
+            const oldKey = `uploads/${image.file_name}`;
+            const newKey = `uploads/${newFileName}`;
+            await renameFileOnS3(oldKey, newKey);
+        } else {
+            const oldPath = path.join(__dirname, "../../../public", image.file_path);
+            const newPath = path.join(__dirname, "../../../public/uploads", newFileName);
+            await fs.rename(oldPath, newPath);
         }
 
-        return res.json({ message: "重新命名成功" });
-    } catch (error) {
-        console.error("Rename Error:", error);
-        return res.status(500).json({
-            status: "error",
-            message: "重新命名失敗",
-            detail: error.message
-        });
+        await pool.query(
+            "UPDATE char_images SET file_name = $1, file_path = $2 WHERE id = $3",
+            [newFileName, newFilePath, image.id]
+        );
+
+        res.json({ message: "角色已重新命名", newFileName });
+    } catch (err) {
+        console.error("重新命名錯誤：", err);
+        res.status(500).json({ message: "伺服器錯誤" });
     }
 };
 

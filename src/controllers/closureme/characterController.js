@@ -3,6 +3,7 @@ const pool = require("../../models/db");
 const path = require("path");
 const fs = require("fs").promises;
 const fsSync = require("fs");
+const { MODE, uploadBufferToS3 } = require("../../storage");
 
 function escapeRegex(text) {
     return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -13,7 +14,7 @@ async function getUniqueFileNameFromDB(baseName, ext) {
     let fileName;
 
     const escapedBase = escapeRegex(baseName);
-    const pattern = `^${escapedBase}(\\(\\d+\\))?\\.[a-zA-Z0-9]+$`; // ✅ 改這裡：允許任意副檔名
+    const pattern = `^${escapedBase}(\\(\\d+\\))?\\.[a-zA-Z0-9]+$`;
 
     const result = await pool.query(
         `SELECT file_name FROM char_images WHERE file_name ~ $1`,

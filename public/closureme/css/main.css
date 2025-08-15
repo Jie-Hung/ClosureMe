@@ -442,7 +442,6 @@ body {
 
 /* ✅ 標題風格 */
 .modal-content::before {
-  content: "完整記憶";
   display: block;
   font-size: 20px;
   font-weight: bold;

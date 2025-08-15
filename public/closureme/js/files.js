@@ -105,10 +105,20 @@ document.addEventListener("DOMContentLoaded", () => {
                 const url = btn.dataset.url;
                 const label = btn.dataset.label;
                 const fileName = btn.dataset.filename;
+
+                if (!url || !url.startsWith("http")) {
+                    alert("❌ 找不到檔案路徑！");
+                    return;
+                }
+
                 if (confirm(`是否確定下載 ${fileName} 的${label}？`)) {
+                    const ext = url.split('.').pop().split('?')[0]; 
+                    const saveName = `${fileName}_${label}.${ext}`;
+
                     const tempLink = document.createElement("a");
                     tempLink.href = url;
-                    tempLink.download = "";
+                    tempLink.download = saveName;
+                    tempLink.style.display = "none";
                     document.body.appendChild(tempLink);
                     tempLink.click();
                     document.body.removeChild(tempLink);
