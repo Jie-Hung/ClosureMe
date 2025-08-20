@@ -1,7 +1,6 @@
 // register.js
 import { isValidEmail } from "../../utils/validate.js";
 
-// 綁定註冊按鈕事件
 document.addEventListener("DOMContentLoaded", () => {
     const registerBtn = document.getElementById("registerBtn");
     console.log("✅ register-main.js loaded");
@@ -16,7 +15,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// 前端註冊邏輯
 export async function register() {
     const username = document.getElementById("regUsername").value.trim();
     const email = document.getElementById("regEmail").value.trim();

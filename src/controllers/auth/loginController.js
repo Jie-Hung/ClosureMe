@@ -1,5 +1,4 @@
 // loginController.js
-// 後端登入邏輯
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const pool = require("../../models/db");
@@ -12,7 +11,6 @@ exports.login = async (req, res) => {
     }
 
     try {
-        // 查詢帳號（可以是 username 或 email）
         const result = await pool.query(
             "SELECT * FROM users WHERE username = $1 OR email = $1",
             [identifier]

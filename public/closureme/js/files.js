@@ -10,11 +10,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (goHomeBtn) {
         goHomeBtn.addEventListener("click", () => {
-            window.location.href = "/closureme/html/main.html"; // 導回首頁
+            window.location.href = "/closureme/html/main.html"; 
         });
     }
 
-    let allFiles = []; // 存放 API 回傳的資料
+    let allFiles = [];
 
     // 取得檔案資料
     async function loadFiles() {
@@ -84,8 +84,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     <button class="file-btn btn-download" data-url="${file.memory_path}" data-filename="${nameWithoutExt}" data-label="記憶描述">記憶</button>
                 </div>
                 <div class="btn-group">
-                    <button class="file-btn btn-download-voice" data-filename="${nameWithoutExt}">語音</button>
-                    <button class="file-btn btn-rename" data-name="${file.file_name}">重新命名</button>
+                    <button class="file-btn btn-download" data-url="${file.voice_path}" data-filename="${nameWithoutExt}" data-label="語音">語音</button>
+                    <button class="file-btn btn-rename" data-filename="${file.file_name}" data-upload-batch="${file.upload_batch}">重新命名</button>
                     <button class="file-btn btn-delete" data-name="${file.file_name}">刪除</button>
                 </div>
             `;
@@ -93,9 +93,15 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         bindDownloadButtons();
-        bindDownloadVoiceButtons();
         bindRenameButtons();
         bindDeleteButtons();
+    }
+
+    function getBaseName(fileNameWithExt = "") {
+        let base = fileNameWithExt.replace(/\.[^/.]+$/, "");
+        base = base.replace(/\.(profile|memory|voice)$/i, "");
+        base = base.replace(/_(head|body)$/i, "");
+        return base;
     }
 
     // 下載按鈕事件
@@ -112,46 +118,39 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
 
                 if (confirm(`是否確定下載 ${fileName} 的${label}？`)) {
-                    const ext = url.split('.').pop().split('?')[0]; 
-                    const saveName = `${fileName}_${label}.${ext}`;
-
-                    const tempLink = document.createElement("a");
-                    tempLink.href = url;
-                    tempLink.download = saveName;
-                    tempLink.style.display = "none";
-                    document.body.appendChild(tempLink);
-                    tempLink.click();
-                    document.body.removeChild(tempLink);
-                }
-            };
-        });
-    }
-
-    // 下載語音事件
-    function bindDownloadVoiceButtons() {
-        document.querySelectorAll(".btn-download-voice").forEach(btn => {
-            btn.onclick = async () => {
-                const fileName = btn.dataset.filename;
-                if (confirm(`是否確定下載 ${fileName} 的語音檔？`)) {
                     try {
-                        const res = await fetch(`/api/download-character?fileName=${encodeURIComponent(fileName)}`, {
-                            headers: { Authorization: `Bearer ${getToken()}` }
-                        });
-                        const result = await handleApiResponse(res);
-                        const voicePath = result.data.voicePath;
-                        if (!voicePath) {
-                            showToast("找不到語音檔", "error");
-                            return;
+                        const ext = url.split('.').pop().split('?')[0];
+                        let suffix = "";
+
+                        if (label === "外觀描述") suffix = "_profile";
+                        else if (label === "記憶描述") suffix = "_memory";
+                        else if (label === "語音") suffix = "_voice";
+
+                        const saveName = label === "圖片"
+                            ? `${fileName}.png`
+                            : `${fileName}${suffix}.${ext}`;
+
+                        if (label === "圖片") {
+                            const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(saveName)}`;
+                            window.location.href = proxyUrl;
+                        } else {
+                            const res = await fetch(url);
+                            if (!res.ok) throw new Error("下載失敗");
+
+                            const blob = await res.blob();
+                            const blobUrl = URL.createObjectURL(blob);
+
+                            const a = document.createElement("a");
+                            a.href = blobUrl;
+                            a.download = saveName;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(blobUrl);
                         }
-                        const tempLink = document.createElement("a");
-                        tempLink.href = voicePath;
-                        tempLink.download = `${fileName}_voice.wav`;
-                        document.body.appendChild(tempLink);
-                        tempLink.click();
-                        document.body.removeChild(tempLink);
-                    } catch (err) {
-                        console.error("語音下載錯誤：", err);
-                        showToast("語音下載失敗", "error");
+                    } catch (error) {
+                        console.error("下載錯誤：", error);
+                        showToast("下載失敗", "error");
                     }
                 }
             };
@@ -161,27 +160,37 @@ document.addEventListener("DOMContentLoaded", () => {
     // 重新命名事件
     function bindRenameButtons() {
         document.querySelectorAll(".btn-rename").forEach(btn => {
-            btn.onclick = async () => {
-                const fileName = btn.dataset.name;
-                const newName = prompt("輸入新的檔名（不含副檔名）：");
-                if (newName) {
-                    try {
-                        const res = await fetch(`/api/rename-character`, {
-                            method: "PATCH",
-                            headers: {
-                                "Content-Type": "application/json",
-                                "Authorization": `Bearer ${getToken()}`
-                            },
-                            body: JSON.stringify({ fileName, newName })
-                        });
-                        const data = await handleApiResponse(res);
-                        if (!data) return;
-                        if (!res.ok) throw new Error(data.message);
-                        showToast("重新命名成功", "success");
-                        loadFiles();
-                    } catch (error) {
-                        showToast(`重新命名失敗：${error.message}`, "error");
-                    }
+            btn.onclick = async (e) => {
+                const button = e.currentTarget;
+                const uploadBatch = button.getAttribute("data-upload-batch");
+                const fileNameWithExt = button.getAttribute("data-filename") || "";
+                const fileName = getBaseName(fileNameWithExt);
+
+                const inputName = prompt("輸入新的檔名（不含副檔名）：")?.trim();
+                if (!inputName) return;
+                const newName = inputName.replace(/\s+/g, "_");
+
+                const payload = uploadBatch
+                    ? { uploadBatch, newName }
+                    : { fileName, newName };
+
+                try {
+                    const res = await fetch(`/api/rename-character`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${getToken()}`
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const data = await handleApiResponse(res);
+                    if (!data) return;
+                    if (!res.ok) throw new Error(data.message);
+                    showToast("重新命名成功", "success");
+                    loadFiles();
+                } catch (error) {
+                    showToast(`重新命名失敗：${error.message}`, "error");
                 }
             };
         });
@@ -191,29 +200,33 @@ document.addEventListener("DOMContentLoaded", () => {
     function bindDeleteButtons() {
         document.querySelectorAll(".btn-delete").forEach(btn => {
             btn.onclick = async () => {
-                const fileNameWithExt = btn.dataset.name;
-                const fileName = fileNameWithExt.replace(/\.[^/.]+$/, "");
+                const fileNameWithExt = btn.dataset.name || "";
+                const fileName = getBaseName(fileNameWithExt);
 
-                if (confirm(`確定要刪除角色「${fileName}」嗎？`)) {
-                    try {
-                        const res = await fetch("/api/delete-character", {
-                            method: "DELETE",
-                            headers: {
-                                "Content-Type": "application/json",
-                                "Authorization": `Bearer ${getToken()}`
-                            },
-                            body: JSON.stringify({ fileName })
-                        });
+                if (!fileName) {
+                    showToast("找不到要刪除的檔名", "error");
+                    return;
+                }
+                if (!confirm(`確定要刪除角色「${fileName}」嗎？`)) return;
 
-                        const data = await handleApiResponse(res);
-                        if (!data) return;
-                        if (!res.ok) throw new Error(data.message);
+                try {
+                    const res = await fetch("/api/delete-character", {
+                        method: "DELETE",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${getToken()}`
+                        },
+                        body: JSON.stringify({ fileName })
+                    });
 
-                        showToast("刪除成功", "success");
-                        loadFiles();
-                    } catch (error) {
-                        showToast(`刪除失敗：${error.message}`, "error");
-                    }
+                    const data = await handleApiResponse(res);
+                    if (!data) return;
+                    if (!res.ok) throw new Error(data.message);
+
+                    showToast("刪除成功", "success");
+                    loadFiles();
+                } catch (error) {
+                    showToast(`刪除失敗：${error.message}`, "error");
                 }
             };
         });
@@ -226,9 +239,3 @@ document.addEventListener("DOMContentLoaded", () => {
     // 初始化載入
     loadFiles();
 });
-
-
-
-
-
-

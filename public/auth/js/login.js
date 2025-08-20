@@ -1,5 +1,4 @@
 // login.js
-// 綁定登入按鈕事件
 document.addEventListener("DOMContentLoaded", () => {
     const loginBtn = document.getElementById("loginBtn");
 
@@ -8,7 +7,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// 登入功能
 async function login() {
     const identifier = document.getElementById("loginIdentifier").value.trim();
     const password = document.getElementById("loginPassword").value.trim();
@@ -28,7 +26,6 @@ async function login() {
         const data = await res.json().catch(() => ({ message: "登入失敗" }));
 
         if (res.ok && data.token) {
-            // 儲存 Token & 使用者名稱
             localStorage.setItem("token", data.token);
             localStorage.setItem("username", data.user.username);
 

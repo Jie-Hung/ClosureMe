@@ -328,3 +328,117 @@
 .filename-confirm:hover {
     background-color: #7d6c45;
 }
+
+/* =========================================================
+   [分割介面 Split Modal]
+   ========================================================= */
+/* 分割 Modal 彈窗樣式 */
+.modal {
+    position: fixed;
+    z-index: 9999;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(10, 10, 10, 0.5);
+}
+
+.modal-box {
+    background: #fff7eb;
+    border: 4px solid #c9b89c;
+    border-radius: 16px;
+    padding: 24px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    max-width: 960px;
+    max-height: 90vh;
+    width: 90%;
+    overflow: hidden;
+}
+
+/* 圖片與紅線區域 */
+.split-image-area {
+    position: relative;
+    text-align: center;
+    max-height: 60vh;
+}
+
+#splitCanvas {
+    max-width: 100%;
+    max-height: 60vh;
+    height: auto;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+    border-radius: 8px;
+}
+
+.split-line {
+    position: absolute;
+    width: 100%;
+    height: 2px;
+    background-color: red;
+    top: 50%;
+    cursor: row-resize;
+    z-index: 2;
+    left: 0;
+    right: 0;
+}
+
+.split-percent {
+    position: absolute;
+    left: 8px;
+    top: 4px;
+    font-size: 12px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+/* 預覽區塊 */
+.split-preview-container {
+    display: flex;
+    justify-content: space-around;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.preview-img {
+    max-width: 200px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* 底部工具列 */
+.split-toolbar {
+    margin-top: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.button-group button {
+    margin-left: 8px;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    background-color: #964F4C;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.button-group button.confirm {
+    background-color: #4CAF50;
+}
+
+.button-group button.cancel {
+    background-color: #ccc;
+    color: black;
+}
+
+.button-group button:hover {
+    opacity: 0.85;
+}

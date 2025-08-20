@@ -92,6 +92,42 @@
     </div>
   </div>
 
+  <!-- ✅ 分割圖片 Modal -->
+  <div id="splitModal" class="modal" style="display: none;">
+    <div class="modal-box">
+      <!-- 主圖片與紅線 -->
+      <div class="split-image-area">
+        <canvas id="splitCanvas"></canvas>
+        <div id="splitCutLine" class="split-line"></div>
+        <div id="splitPercent" class="split-percent">50%</div>
+      </div>
+
+      <!-- 預覽 -->
+      <div class="split-preview-container">
+        <div>
+          <strong>上半部（Head）</strong>
+          <img id="headPreview" class="preview-img" />
+        </div>
+        <div>
+          <strong>下半部（Body）</strong>
+          <img id="bodyPreview" class="preview-img" />
+        </div>
+      </div>
+
+      <!-- 工具列 -->
+      <div class="split-toolbar">
+        <span>800 × 450</span>
+        <div class="button-group">
+          <button id="btnHalf">切一半</button>
+          <button id="btnOneThird">切 1/3</button>
+          <button id="btnTwoThird">切 2/3</button>
+          <button id="confirmSplitBtn" class="confirm">確定切割</button>
+          <button id="cancelSplitBtn" class="cancel">取消</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const helpBtn = document.getElementById("helpBtn");
     const guideModal = document.getElementById("guideModal");

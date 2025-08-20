@@ -1,4 +1,10 @@
 node_modules/
 .env
 uploads/
-*.log
+test.js
+test.py
+test1.py
+local_data.sql
+local_data_utf8.sql
+function/
+public/assets

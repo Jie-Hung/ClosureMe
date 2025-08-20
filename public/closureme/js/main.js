@@ -6,33 +6,36 @@ const displayArea = document.querySelector(".display-area");
 const logoutBtn = document.getElementById("logoutBtn");
 
 if (logoutBtn) {
-    logoutBtn.addEventListener("click", () => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("username");
-        window.location.href = "/auth/html/login.html"; 
-    });
+  logoutBtn.addEventListener("click", () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    window.location.href = "/auth/html/login.html";
+  });
 }
 
 const imageData = {
   char: { images: [], names: [], memoryDescriptions: [], selected: null, timestamp: null },
   scene: {
-    images: Array.from({ length: 5 }, (_, i) => `../../assets/img/scene/${i + 1}.png`),
+    images: Array.from({ length: 0 }, (_, i) => `../../assets/img/scene/${i + 1}.png`),
     descriptions: [
-      "海邊落日場景", "森林小徑", "古老圖書館", "現代城市街道", "雪山之巔"
+      ""
     ],
     selected: null, timestamp: null
   }
 };
 
-// ✅ 載入角色資料（只顯示記憶描述）
+// 載入角色資料
 async function loadCharacters() {
   try {
     const token = localStorage.getItem("token");
     const res = await fetch("/api/characters", {
-      headers: { "Authorization": `Bearer ${token}` }
+      headers: { "Authorization": `Bearer ${token}` },
+      cache: "no-store"
     });
     if (!res.ok) throw new Error("無法載入角色資料");
-    const data = await res.json();
+
+    const payload = await res.json();
+    const data = Array.isArray(payload.data) ? payload.data : [];
 
     charScroll.innerHTML = "";
 
@@ -48,15 +51,12 @@ async function loadCharacters() {
     for (let i = 0; i < data.length; i++) {
       const char = data[i];
 
-      // ✅ 建立卡片
       const card = createCard("char", i, char.image_path);
       charScroll.appendChild(card);
 
-      // ✅ 存放資料
       imageData.char.images.push(char.image_path);
-      imageData.char.names.push(char.name);
+      imageData.char.names.push(char.file_name);
 
-      // ✅ 讀取記憶描述
       const memoryText = await loadTextFile(char.memory_path);
       imageData.char.memoryDescriptions.push(memoryText);
     }
@@ -70,7 +70,7 @@ async function loadCharacters() {
   }
 }
 
-// ✅ 載入文字檔
+// 載入文字檔
 async function loadTextFile(url) {
   if (!url) return "描述檔案不存在";
   try {
@@ -82,7 +82,7 @@ async function loadTextFile(url) {
   }
 }
 
-// ✅ 建立角色或場景卡片
+// 建立角色與場景卡片
 function createCard(type, index, imageUrl) {
   const card = document.createElement("div");
   card.classList.add("select-card");
@@ -98,7 +98,7 @@ function createCard(type, index, imageUrl) {
   return card;
 }
 
-// ✅ 點擊選擇卡片
+// 點擊選擇卡片
 function handleSelect(card) {
   const type = card.dataset.type;
   const index = parseInt(card.dataset.index);
@@ -113,7 +113,7 @@ function handleSelect(card) {
   updateDisplay();
 }
 
-// ✅ 更新顯示翻轉卡片
+// 更新顯示翻轉卡片
 function updateDisplay() {
   displayArea.innerHTML = "";
 
@@ -129,7 +129,7 @@ function updateDisplay() {
 
   const shortDesc = memoryDesc.length > 100 ? memoryDesc.substring(0, 100) + "..." : memoryDesc;
 
-  // ✅ 保持原有翻轉結構
+  // 保持原有翻轉結構
   const flipContainer = document.createElement("div");
   flipContainer.className = "flip-container";
 
@@ -190,7 +190,7 @@ function updateDisplay() {
   flipContainer.onclick = () => flipCard.classList.toggle("flipped");
 }
 
-// ✅ 模態視窗
+// 互動視窗
 function openDescriptionModal(fullText) {
   const modal = document.getElementById("descModal");
   const closeBtn = modal.querySelector(".close-btn");
@@ -203,7 +203,7 @@ function openDescriptionModal(fullText) {
   modal.onclick = (e) => { if (e.target === modal) modal.style.display = "none"; };
 }
 
-// ✅ 工具
+// 工具
 function updateCount(type) {
   const countEl = document.getElementById(`${type}-count`);
   const total = imageData[type].images.length;
@@ -218,7 +218,7 @@ function addUploadButton() {
   addCard.onclick = (e) => { e.preventDefault(); openUploadModal(); };
 }
 
-// ✅ 初始化場景卡片
+// 初始化場景卡片
 function initSceneCards() {
   sceneScroll.innerHTML = "";
   imageData.scene.images.forEach((url, index) => {
@@ -235,7 +235,6 @@ function initSceneCards() {
   document.getElementById("scene-count").textContent = `0/${imageData.scene.images.length}`;
 }
 
-// ✅ 初始化
 loadCharacters();
 initSceneCards();
 

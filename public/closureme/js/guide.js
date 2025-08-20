@@ -43,5 +43,5 @@ function initGuideModal() {
     }
   };
 
-  updatePage(); 
+  updatePage();
 }

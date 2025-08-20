@@ -1,15 +1,16 @@
-// 人物上傳 API（加入 authMiddleware）
-const express = require("express");
-const router = express.Router();
+// 人物上傳 API
+const router = require("express").Router();
 const multer = require("multer");
-const path = require("path");
 const characterController = require("../../controllers/closureme/characterController");
 const authMiddleware = require("../../middlewares/authMiddleware");
 
-// ✅ Multer 設定
-const upload = multer({ dest: path.join(process.cwd(), "public", "uploads") });
+// Multer 設定
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 30 * 1024 * 1024 } 
+});
 
-// ✅ 支援多欄位上傳
+// 多欄位上傳
 router.post(
   "/upload-character",
   authMiddleware,
@@ -20,7 +21,17 @@ router.post(
   characterController.upload
 );
 
+router.post(
+  "/split-character",
+  authMiddleware,
+  upload.fields([
+    { name: "head", maxCount: 1 },
+    { name: "body", maxCount: 1 }
+  ]),
+  characterController.splitCharacter
+);
+
 router.get("/download-character", authMiddleware, characterController.download);
+router.get("/proxy-download", characterController.proxyDownload);
 
 module.exports = router;
-

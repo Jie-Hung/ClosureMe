@@ -1,5 +1,4 @@
 // registerController.js 
-// 後端註冊邏輯
 const bcrypt = require('bcryptjs');
 const pool = require('../../models/db');
 const { isValidEmail } = require('../../../public/utils/validate');
@@ -8,7 +7,6 @@ exports.register = async (req, res) => {
     try {
         const { username, email, password } = req.body;
 
-        // 資料驗證
         if (!username || !email || !password) {
             return res.status(400).json({ message: '請填寫所有欄位' });
         }
@@ -16,10 +14,8 @@ exports.register = async (req, res) => {
             return res.status(400).json({ message: '請輸入正確的電子郵件格式' });
         }
 
-        // 密碼加密
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // 寫入資料庫並取得新用戶 ID
         const result = await pool.query(
             'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email',
             [username, email, hashedPassword]
@@ -46,6 +42,3 @@ exports.register = async (req, res) => {
         return res.status(500).json({ message: "伺服器錯誤" });
     }
 };
-
-
-

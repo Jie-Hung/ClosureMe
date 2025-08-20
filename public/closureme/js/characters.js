@@ -1,4 +1,4 @@
-// characters.js
+// characters.js 
 import { checkToken, getToken, handleApiResponse } from "../../utils/auth.js";
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -56,7 +56,7 @@ export function openUploadModal() {
                 } else {
                     renderFileList();
                 }
-            }
+            },
         },
         {
             title: "外觀描述 2/4",
@@ -67,7 +67,7 @@ export function openUploadModal() {
                 document.getElementById("profileInput").oninput = (e) => {
                     profileText = e.target.value;
                 };
-            }
+            },
         },
         {
             title: "記憶描述 3/4",
@@ -78,20 +78,20 @@ export function openUploadModal() {
                 document.getElementById("memoryInput").oninput = (e) => {
                     memoryText = e.target.value;
                 };
-            }
+            },
         },
         {
             title: "語音上傳 4/4",
             render: () => {
                 contentEl.innerHTML = `
-                <div style="margin: 20px;">
-                    <label for="voiceInput">上傳語音 (.wav)：</label>
-                    <input type="file" id="voiceInput" accept=".wav" />
-                    <p style="font-size:14px;color:#777;"></p>
-                </div>
-            `;
-            }
-        }
+                    <div style="margin: 20px;">
+                        <label for="voiceInput">上傳語音 (.wav)：</label>
+                        <input type="file" id="voiceInput" accept=".wav" />
+                        <p style="font-size:14px;color:#777;"></p>
+                    </div>
+                `;
+            },
+        },
     ];
 
     let currentStep = 0;
@@ -111,17 +111,215 @@ export function openUploadModal() {
             }
 
             const reader = new FileReader();
-            reader.onload = (e) => {
+            reader.onload = async (e) => {
                 files.push({
                     name: file.name,
                     size: file.size,
                     dataUrl: e.target.result,
-                    rawFile: file
+                    rawFile: file,
                 });
-                renderStep();
+
+                renderStep(); // 顯示縮圖預覽
+
+                const waitUntilSplitCanvasExists = () => {
+                    const canvas = document.getElementById("splitCanvas");
+                    if (canvas) {
+                        openSplitModal(reader.result);
+                    } else {
+                        setTimeout(waitUntilSplitCanvasExists, 50);
+                    }
+                };
+                waitUntilSplitCanvasExists();
             };
             reader.readAsDataURL(file);
         }
+    }
+
+    /**
+     * @param {string} imageUrl 
+     * @param {Object} [options]
+     * @param {(payload:{headBlob:Blob, bodyBlob:Blob, cutY:number, ratio:number})=>void} [options.onConfirm] 
+     */
+    
+    async function openSplitModal(imageUrl, options = {}) {
+
+        const splitModal = document.getElementById('splitModal');
+        const splitCanvas = document.getElementById('splitCanvas');
+        const cutLine = document.getElementById('splitCutLine');
+        const percentEl = document.getElementById('splitPercent');
+        const headPreview = document.getElementById('headPreview');
+        const bodyPreview = document.getElementById('bodyPreview');
+
+        const btnHalf = document.getElementById('btnHalf');
+        const btn13 = document.getElementById('btn13') || document.getElementById('btnOneThird');
+        const btn23 = document.getElementById('btn23') || document.getElementById('btnTwoThird');
+        const btnConfirm = document.getElementById('btnConfirmSplit') || document.getElementById('confirmSplitBtn');
+        const btnCancel = document.getElementById('btnCancelSplit') || document.getElementById('cancelSplitBtn');
+
+        const ctx = splitCanvas.getContext('2d', { willReadFrequently: true });
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+
+        let splitCutY = 0;   
+        let dragging = false;
+
+        function getScaleY() {
+            const rect = splitCanvas.getBoundingClientRect();
+            return rect.height / splitCanvas.height;
+        }
+
+        function clamp(v, lo, hi) {
+            return Math.max(lo, Math.min(hi, v));
+        }
+
+        function updateCutLine() {
+            const topDisplay = splitCutY * getScaleY(); 
+            cutLine.style.top = `${topDisplay}px`;
+            const percent = Math.round((splitCutY / splitCanvas.height) * 100);
+            if (percentEl) percentEl.textContent = `${percent}%`;
+        }
+
+        function updatePreview() {
+            const w = splitCanvas.width, h = splitCanvas.height;
+
+            const headCanvas = document.createElement('canvas');
+            headCanvas.width = w; headCanvas.height = splitCutY;
+            if (headCanvas.height > 0) {
+                headCanvas.getContext('2d').drawImage(img, 0, 0, w, splitCutY, 0, 0, w, splitCutY);
+                headPreview.src = headCanvas.toDataURL('image/png');
+            } else headPreview.src = '';
+
+            const bodyCanvas = document.createElement('canvas');
+            bodyCanvas.width = w; bodyCanvas.height = h - splitCutY;
+            if (bodyCanvas.height > 0) {
+                bodyCanvas.getContext('2d').drawImage(
+                    img, 0, splitCutY, w, h - splitCutY, 0, 0, w, h - splitCutY
+                );
+                bodyPreview.src = bodyCanvas.toDataURL('image/png');
+            } else bodyPreview.src = '';
+        }
+
+        function setRatio(ratio) {
+            splitCutY = clamp(splitCanvas.height * ratio, 0, splitCanvas.height);
+            updateCutLine();
+            updatePreview();
+        }
+
+        async function buildBlobs() {
+            const w = splitCanvas.width, h = splitCanvas.height;
+
+            const headCanvas = document.createElement('canvas');
+            headCanvas.width = w; headCanvas.height = splitCutY;
+            if (headCanvas.height > 0) {
+                headCanvas.getContext('2d').drawImage(img, 0, 0, w, splitCutY, 0, 0, w, splitCutY);
+            }
+
+            const bodyCanvas = document.createElement('canvas');
+            bodyCanvas.width = w; bodyCanvas.height = h - splitCutY;
+            if (bodyCanvas.height > 0) {
+                bodyCanvas.getContext('2d').drawImage(
+                    img, 0, splitCutY, w, h - splitCutY, 0, 0, w, h - splitCutY
+                );
+            }
+
+            const headBlob = await new Promise(res => headCanvas.toBlob(b => res(b), 'image/png'));
+            const bodyBlob = await new Promise(res => bodyCanvas.toBlob(b => res(b), 'image/png'));
+            return { headBlob, bodyBlob };
+        }
+
+        async function onConfirm() {
+            const { headBlob, bodyBlob } = await buildBlobs();
+            const ratio = splitCutY / splitCanvas.height;
+
+            window._pendingSplit = { headBlob, bodyBlob, cutY: splitCutY, ratio };
+            showToast("分割成功，將在儲存時一併上傳", "success");
+
+            if (typeof options.onConfirm === 'function') {
+                options.onConfirm(window._pendingSplit);
+            } else {
+                document.dispatchEvent(new CustomEvent('split:confirm', { detail: window._pendingSplit }));
+            }
+            closeModal();
+        }
+
+        function closeModal() {
+            removeEvents();
+            splitModal.style.display = 'none';
+        }
+
+        const handlers = {
+            onDown: () => { dragging = true; },
+            onUp: () => { dragging = false; },
+            onMove: (e) => {
+                if (!dragging) return;
+                const rect = splitCanvas.getBoundingClientRect();
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                const yDisplay = clientY - rect.top;   
+                const ySource = yDisplay / getScaleY(); 
+                splitCutY = clamp(ySource, 0, splitCanvas.height);
+                updateCutLine();
+                updatePreview();
+            },
+            onResize: () => updateCutLine(),
+            onKey: (e) => { if (e.key === 'Escape') closeModal(); },
+            onHalf: (e) => { e?.preventDefault?.(); setRatio(0.5); },
+            on13: (e) => { e?.preventDefault?.(); setRatio(1 / 3); },
+            on23: (e) => { e?.preventDefault?.(); setRatio(2 / 3); },
+            onConfirm: (e) => { e?.preventDefault?.(); onConfirm(); },
+            onCancel: (e) => { e?.preventDefault?.(); closeModal(); },
+        };
+
+        function addEvents() {
+            cutLine.addEventListener('mousedown', handlers.onDown);
+            document.addEventListener('mousemove', handlers.onMove);
+            document.addEventListener('mouseup', handlers.onUp);
+
+            cutLine.addEventListener('touchstart', handlers.onDown, { passive: true });
+            document.addEventListener('touchmove', handlers.onMove, { passive: true });
+            document.addEventListener('touchend', handlers.onUp, { passive: true });
+
+            window.addEventListener('resize', handlers.onResize);
+            document.addEventListener('keydown', handlers.onKey);
+
+            btnHalf && btnHalf.addEventListener('click', handlers.onHalf);
+            btn13 && btn13.addEventListener('click', handlers.on13);
+            btn23 && btn23.addEventListener('click', handlers.on23);
+            btnConfirm && btnConfirm.addEventListener('click', handlers.onConfirm);
+            btnCancel && btnCancel.addEventListener('click', handlers.onCancel);
+        }
+
+        function removeEvents() {
+            cutLine.removeEventListener('mousedown', handlers.onDown);
+            document.removeEventListener('mousemove', handlers.onMove);
+            document.removeEventListener('mouseup', handlers.onUp);
+
+            cutLine.removeEventListener('touchstart', handlers.onDown);
+            document.removeEventListener('touchmove', handlers.onMove);
+            document.removeEventListener('touchend', handlers.onUp);
+
+            window.removeEventListener('resize', handlers.onResize);
+            document.removeEventListener('keydown', handlers.onKey);
+
+            btnHalf && btnHalf.removeEventListener('click', handlers.onHalf);
+            btn13 && btn13.removeEventListener('click', handlers.on13);
+            btn23 && btn23.removeEventListener('click', handlers.on23);
+            btnConfirm && btnConfirm.removeEventListener('click', handlers.onConfirm);
+            btnCancel && btnCancel.removeEventListener('click', handlers.onCancel);
+        }
+
+        img.onload = () => {
+            splitCanvas.width = img.naturalWidth;
+            splitCanvas.height = img.naturalHeight;
+            ctx.clearRect(0, 0, splitCanvas.width, splitCanvas.height);
+            ctx.drawImage(img, 0, 0);
+
+            splitCutY = splitCanvas.height / 2;
+            splitModal.style.display = 'flex';
+            updateCutLine();
+            updatePreview();
+            addEvents();
+        };
+        img.src = imageUrl;
     }
 
     function renderFileList() {
@@ -178,11 +376,16 @@ export function openUploadModal() {
         addMoreWrapper.appendChild(addMoreBtn);
         contentEl.appendChild(addMoreWrapper);
 
-        contentEl.querySelectorAll(".upload-remove-btn").forEach(btn => {
+        contentEl.querySelectorAll(".upload-remove-btn").forEach((btn) => {
             btn.onclick = () => {
-                const i = parseInt(btn.getAttribute("data-index"));
-                files.splice(i, 1);
-                renderStep();
+                const name = btn
+                    .closest(".upload-file-item")
+                    .querySelector(".upload-filename").textContent;
+                const index = files.findIndex((f) => f.name === name);
+                if (index !== -1) {
+                    files.splice(index, 1);
+                    renderFileList();
+                }
             };
         });
     }
@@ -217,29 +420,46 @@ export function openUploadModal() {
 
         try {
             const formData = new FormData();
-            files.forEach((f) => {
-                formData.append("file", f.rawFile); 
-            });
+            files
+                .filter((f) => f.rawFile)
+                .forEach((f) => {
+                    formData.append("file", f.rawFile);
+                });
             formData.append("profile", profileText);
             formData.append("memory", memoryText);
             formData.append("filename", fileName);
 
-            const voiceInput = document.querySelector("#voice");
+            const voiceInput = document.querySelector("#voiceInput");
             if (voiceInput?.files?.length > 0) {
                 formData.append("voice", voiceInput.files[0]);
             }
 
-            const voiceFile = document.getElementById("voiceInput")?.files?.[0];
-            if (voiceFile) {
-                formData.append("voice", voiceFile);
+            if (window._pendingSplit && window._pendingSplit.headBlob && window._pendingSplit.bodyBlob) {
+                try {
+                    const fdSplit = new FormData();
+                    fdSplit.append("filename", fileName);
+                    fdSplit.append("head", window._pendingSplit.headBlob, `${fileName}_head.png`);
+                    fdSplit.append("body", window._pendingSplit.bodyBlob, `${fileName}_body.png`);
+                    if (window.currentSplitInfo?.uploadBatch) fdSplit.append("upload_batch", window.currentSplitInfo.uploadBatch);
+                    const splitRes = await fetch("/api/split-character", {
+                        method: "POST",
+                        headers: { Authorization: `Bearer ${getToken()}` },
+                        body: fdSplit,
+                    });
+                    const splitJson = await splitRes.json();
+                    if (!splitRes.ok) { console.error("split-character failed", splitJson); showToast("切割上傳失敗", "error"); return; }
+                } catch (e) {
+                    console.error("split-character error", e);
+                    showToast("切割上傳發生錯誤", "error");
+                    return;
+                }
             }
-
             const res = await fetch("/api/upload-character", {
                 method: "POST",
                 headers: {
-                    "Authorization": `Bearer ${getToken()}`
+                    Authorization: `Bearer ${getToken()}`,
                 },
-                body: formData
+                body: formData,
             });
 
             const data = await handleApiResponse(res);
@@ -271,23 +491,3 @@ export function openUploadModal() {
     modal.style.display = "flex";
     renderStep();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

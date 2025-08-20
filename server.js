@@ -9,7 +9,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/healthz', (_req, res) => res.send('ok')); 
+app.get('/healthz', (_req, res) => res.send('ok'));
 
 const pool = require('./src/models/db');
 app.get('/debug/db', async (_req, res) => {
@@ -29,4 +29,3 @@ app.get("/", (req, res) => {
 setupRoutes(app);
 
 app.listen(PORT, () => console.log(`Server is running on port http://localhost:${PORT}`));
-
