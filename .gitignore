@@ -7,7 +7,6 @@ test1.py
 local_data.sql
 local_data_utf8.sql
 function/
-public/assets
 .env.template
 config.json
 test/
