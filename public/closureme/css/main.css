@@ -223,6 +223,7 @@ body {
    [操作按鈕 Buttons]
    ========================================================= */
 .generate-btn,
+.image-btn,
 .files-btn {
   margin-top: 0;
   padding: 14px 20px;
@@ -256,6 +257,16 @@ body {
 
 .files-btn:hover {
   background: #c58300;
+  transform: scale(1.03);
+}
+
+/* 「圖片上傳」按鈕樣式 */
+.image-btn {
+  background: #4323f7cc;
+}
+
+.image-btn:hover {
+  background: #4323f7cc;
   transform: scale(1.03);
 }
 
@@ -515,17 +526,19 @@ body {
 }
 
 .logout-btn {
+  margin-left: auto;
+  background: #a08c59;
+  color: white;
   position: absolute;
   top: 35px;
   right: 36px;
-  background-color: #e74c3c;
-  color: white;
   border: none;
-  padding: 8px 16px;
   border-radius: 6px;
-  font-size: 14px;
+  padding: 8px 16px;
   cursor: pointer;
-  margin-left: auto;
+  font-size: 14px;
+  transition: background 0.3s ease;
+
 }
 
 .logout-btn:hover {

@@ -2,36 +2,24 @@
 const router = require("express").Router();
 const multer = require("multer");
 const characterController = require("../../controllers/closureme/characterController");
+const fileController = require("../../controllers/closureme/fileController");
 const authMiddleware = require("../../middlewares/authMiddleware");
 
 // Multer 設定
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 30 * 1024 * 1024 } 
+  limits: { fileSize: 100 * 1024 * 1024 } 
 });
 
-// 多欄位上傳
-router.post(
-  "/upload-character",
-  authMiddleware,
-  upload.fields([
-    { name: "file", maxCount: 10 },
-    { name: "voice", maxCount: 1 }
-  ]),
-  characterController.upload
-);
-
-router.post(
-  "/split-character",
-  authMiddleware,
-  upload.fields([
-    { name: "head", maxCount: 1 },
-    { name: "body", maxCount: 1 }
-  ]),
-  characterController.splitCharacter
-);
-
+router.post("/character-info", authMiddleware, upload.fields([{ name: "voice", maxCount: 1 }]), characterController.saveCharacterInfo);
+router.post("/upload-model",  authMiddleware, upload.single("model"), characterController.uploadModel);
 router.get("/download-character", authMiddleware, characterController.download);
 router.get("/proxy-download", characterController.proxyDownload);
+router.post("/split-character", authMiddleware, upload.fields([{ name: "main", maxCount: 1 }, { name: "head", maxCount:1 }, { name: "body", maxCount:1 }]), characterController.splitCharacter);
+router.get("/main-images-for-binding", authMiddleware, fileController.getMainImagesForBinding);
+router.get("/get-pending-images", characterController.getPendingImages);
+
+// 舊流程
+router.post("/upload-character", authMiddleware, upload.fields([{ name: "file" }, { name: "voice", maxCount:1 }]), characterController.upload);
 
 module.exports = router;

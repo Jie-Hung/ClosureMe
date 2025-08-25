@@ -233,7 +233,6 @@ body {
 
 #goHomeBtn {
     background: #a08c59;
-    /* 金棕色 */
     color: white;
     position: absolute;
     top: 40px;
@@ -248,7 +247,6 @@ body {
 
 #goHomeBtn:hover {
     background: #8c774f;
-    /* 深棕 hover 效果 */
 }
 
 .filter-bar {

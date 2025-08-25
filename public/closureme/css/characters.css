@@ -1,47 +1,40 @@
 /* =========================================================
-   [上傳介面 Upload Modal]
+   Upload Modal（外層骨架維持不變）
    ========================================================= */
-/* 背景遮罩 */
 .upload-modal {
     display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(248, 240, 255, 0.6);
+    inset: 0;
+    z-index: 9999;
+    background: rgba(248, 240, 255, .6);
     backdrop-filter: blur(5px);
     justify-content: center;
     align-items: center;
-    z-index: 9999;
 }
 
-/* 主要內容區塊 */
 .upload-content {
     background: #fff7eb;
     border: 4px solid #c9b89c;
     border-radius: 20px;
     width: 90vw;
     max-width: 640px;
-    aspect-ratio: 1 / 1;
+    aspect-ratio: 1/1;
     display: grid;
     grid-template-rows: 12% 1fr 12%;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, .15);
     padding: 20px;
     box-sizing: border-box;
 }
 
-/* 標題文字 */
 .upload-content h2 {
+    margin: 0;
     font-size: 26px;
     color: #643e19;
-    margin: 0;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-/* 主要上傳區域 */
 .upload-main {
     display: flex;
     justify-content: center;
@@ -56,7 +49,6 @@
     align-items: center;
 }
 
-/* 換頁按鈕 */
 .upload-controls {
     display: flex;
     justify-content: center;
@@ -69,294 +61,215 @@
     font-size: 18px;
     font-weight: 500;
     border-radius: 12px;
-    background-color: #a39568;
-    color: white;
+    background: #a39568;
+    color: #fff;
     border: none;
-    transition: background 0.3s ease;
+    transition: background .3s;
 }
 
 .upload-controls button:hover {
-    background-color: #6e6547;
+    background: #6e6547;
 }
 
-/* 拖曳上傳區域 */
-.upload-dropzone {
+/* =========================================================
+   1) 空狀態虛線框
+   ========================================================= */
+.upload-section {
     width: 90%;
     height: 100%;
-    background-color: #f5eee3;
+    background: #f3e7d3;
     border: 2px dashed #c9b89c;
     border-radius: 16px;
-    text-align: center;
-    padding: 24px;
     display: flex;
-    flex-direction: column;
     justify-content: center;
     align-items: center;
-    transition: background-color 0.3s;
+    padding: 24px;
+    transition: background-color .25s;
 }
 
-.upload-dropzone:hover {
-    background-color: #f0e6d8;
+.upload-section.dragover {
+    background: #efe6d7;
+}
+
+.upload-section-inner {
+    flex: 1;
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 12px;
+}
+
+.upload-dropzone {
+    width: 100%;
+    height: 100%;
+    min-height: 240px;
+    background: transparent;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.upload-dropzone.dragover {
+    opacity: .95;
+}
+
+.upload-icon {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 4px;
+    margin-left: 20px;
+    /* 右移一點 */
 }
 
 .upload-dropzone p {
     color: #3b7a57;
-    margin-bottom: 12px;
+    margin: 0 0 8px;
 }
 
-/* 上傳圖示 */
-.upload-icon {
-    width: 60px;
-    height: 60px;
-    margin-bottom: 16px;
-    margin-left: 16px;
-}
-
-/* 上傳按鈕 */
 #uploadBtn {
     padding: 10px 20px;
     font-size: 16px;
-    background-color: #4caf50;
-    color: white;
+    background: #4caf50;
+    color: #fff;
     border: none;
     border-radius: 20px;
     cursor: pointer;
-    transition: background 0.3s ease;
+    transition: filter .2s;
+    margin-left: 10px;
 }
 
 #uploadBtn:hover {
-    background-color: #388e3c;
+    filter: brightness(.92);
 }
 
 /* =========================================================
-   [上傳檔案清單 Upload File List]
+   2) 檔案清單顯示（置中 + 卡片）
    ========================================================= */
-/* 檔案上傳清單容器 */
 .upload-file-list {
-    width: 90%;
     display: flex;
-    flex-direction: column;
-    gap: 16px;
-    margin-top: 12px;
-    overflow-y: auto;
-    max-height: 100%;
+    justify-content: center;
+    margin-top: 16px;
 }
 
-/* 單一檔案項目樣式 */
 .upload-file-item {
     display: flex;
     align-items: center;
     gap: 16px;
-    background: #f8f8f8;
-    border-radius: 12px;
     padding: 12px 16px;
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    max-width: 480px;
+    min-width: 440px;
+    /* ✅ 加最小寬度，避免短檔名太窄 */
+    width: 100%;
     position: relative;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.upload-thumb {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    background-color: #eee;
+    border-radius: 6px;
 }
 
 .upload-file-details {
-    flex: 1;
+    flex-grow: 1;
 }
 
 .upload-filename {
-    font-weight: 600;
+    font-weight: bold;
+    text-align: left;
     margin-bottom: 4px;
+    word-break: break-word;
 }
 
 .upload-filesize-preview {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 12px;
 }
 
-/* 檔案縮圖 */
-.upload-thumb {
-    width: 50px;
-    height: 50px;
-    object-fit: cover;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-}
-
-/* 預覽檔案按鈕 */
 .upload-preview-btn {
-    padding: 6px 12px;
-    font-size: 14px;
-    background-color: #e0e0e0;
-    color: #333;
+    background-color: #888;
+    color: white;
     border: none;
-    border-radius: 8px;
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-weight: bold;
     cursor: pointer;
-    transition: background-color 0.2s ease;
 }
 
 .upload-preview-btn:hover {
-    background-color: #ccc;
+    filter: brightness(0.95);
 }
 
-/* 移除檔案按鈕 */
 .upload-remove-btn {
     position: absolute;
-    top: 8px;
     right: 12px;
-    font-size: 20px;
-    color: #999;
-    cursor: pointer;
-    border: none;
+    top: 12px;
     background: none;
-}
-
-.upload-remove-btn:hover {
-    color: #d9534f;
-}
-
-/* 新增檔案按鈕 */
-.upload-add-btn {
-    padding: 8px 16px;
+    border: none;
+    color: #999;
     font-size: 16px;
+    cursor: pointer;
+}
+
+.upload-bottom-btn {
+    display: flex;
+    justify-content: center;
+    margin-top: 24px;
+}
+
+.upload-split-btn {
+    padding: 10px 26px;
     background-color: #4caf50;
     color: white;
     border: none;
-    border-radius: 20px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 16px;
     cursor: pointer;
-    transition: background 0.3s ease;
+    transition: filter 0.2s;
 }
 
-.upload-add-btn:hover {
-    background-color: #388e3c;
-}
-
-/* 預覽圖片樣式 */
-#previewImg {
-    max-width: 100%;
-    max-height: 100%;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+.upload-split-btn:hover {
+    filter: brightness(0.95);
 }
 
 /* =========================================================
-   [檔名輸入 Filename Modal]
+   3) 分割畫面
    ========================================================= */
-/* 背景遮罩 */
-.filename-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: rgba(0, 0, 0, 0.25);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 10000;
-}
-
-/* 主要內容區塊 */
-.filename-content {
-    background: #fff7eb;
-    border: 4px solid #c9b89c;
-    border-radius: 16px;
-    padding: 24px 32px;
-    width: 90%;
-    max-width: 360px;
-    box-shadow: 0 6px 25px rgba(0, 0, 0, 0.15);
-    text-align: center;
-    font-family: inherit;
-}
-
-/* 標題文字 */
-.filename-content h3 {
-    margin-top: 0;
-    font-size: 20px;
-    font-weight: 600;
-    color: #4b2e13;
-    margin-bottom: 16px;
-}
-
-/* 輸入欄位 */
-.filename-content input[type="text"] {
-    width: 100%;
-    padding: 10px 14px;
-    font-size: 16px;
-    border-radius: 10px;
-    border: 1.5px solid #c7b89d;
-    box-sizing: border-box;
-    margin-bottom: 20px;
-    outline: none;
-    font-family: inherit;
-}
-
-/* 按鈕區塊 */
-.filename-buttons {
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-}
-
-/* 取消按鈕 */
-.filename-cancel {
-    flex: 1;
-    max-width: 100px;
-    padding: 10px;
-    background-color: #c7c7c7;
-    color: #fff;
-    border: none;
-    border-radius: 12px;
-    font-size: 16px;
-    cursor: pointer;
-    transition: background 0.3s ease;
-}
-
-.filename-cancel:hover {
-    background-color: #9e9e9e;
-}
-
-/* 確認按鈕 */
-.filename-confirm {
-    flex: 1;
-    max-width: 100px;
-    padding: 10px;
-    background-color: #a08c59;
-    color: #fff;
-    border: none;
-    border-radius: 12px;
-    font-size: 16px;
-    cursor: pointer;
-    transition: background 0.3s ease;
-}
-
-.filename-confirm:hover {
-    background-color: #7d6c45;
-}
-
-/* =========================================================
-   [分割介面 Split Modal]
-   ========================================================= */
-/* 分割 Modal 彈窗樣式 */
 .modal {
+    display: none;
     position: fixed;
-    z-index: 9999;
     inset: 0;
-    display: flex;
+    z-index: 9999;
     align-items: center;
     justify-content: center;
-    background-color: rgba(10, 10, 10, 0.5);
+    background: rgba(10, 10, 10, .5);
 }
 
 .modal-box {
     background: #fff7eb;
     border: 4px solid #c9b89c;
-    border-radius: 16px;
-    padding: 24px;
     border-radius: 20px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    padding: 24px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .2);
     max-width: 960px;
     max-height: 90vh;
     width: 90%;
     overflow: hidden;
 }
 
-/* 圖片與紅線區域 */
 .split-image-area {
     position: relative;
     text-align: center;
@@ -375,14 +288,13 @@
 
 .split-line {
     position: absolute;
-    width: 100%;
-    height: 2px;
-    background-color: red;
-    top: 50%;
-    cursor: row-resize;
-    z-index: 2;
     left: 0;
     right: 0;
+    top: 50%;
+    height: 2px;
+    background: red;
+    cursor: row-resize;
+    z-index: 2;
 }
 
 .split-percent {
@@ -390,13 +302,12 @@
     left: 8px;
     top: 4px;
     font-size: 12px;
-    background: rgba(0, 0, 0, 0.5);
-    color: white;
+    background: rgba(0, 0, 0, .5);
+    color: #fff;
     padding: 2px 6px;
     border-radius: 4px;
 }
 
-/* 預覽區塊 */
 .split-preview-container {
     display: flex;
     justify-content: space-around;
@@ -407,10 +318,9 @@
 .preview-img {
     max-width: 200px;
     border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .1);
 }
 
-/* 底部工具列 */
 .split-toolbar {
     margin-top: 16px;
     display: flex;
@@ -423,22 +333,89 @@
     padding: 6px 12px;
     border: none;
     border-radius: 6px;
-    background-color: #964F4C;
-    color: white;
-    font-weight: bold;
+    background: #964f4c;
+    color: #fff;
+    font-weight: 700;
     cursor: pointer;
-    transition: background 0.2s ease;
-}
-
-.button-group button.confirm {
-    background-color: #4CAF50;
-}
-
-.button-group button.cancel {
-    background-color: #ccc;
-    color: black;
+    transition: filter .2s;
 }
 
 .button-group button:hover {
-    opacity: 0.85;
+    filter: brightness(.92);
+}
+
+.button-group button.confirm {
+    background: #4caf50;
+}
+
+.button-group button.cancel {
+    background: #ccc;
+    color: #000;
+}
+
+/* =========================================================
+   4) 預覽大圖 Modal
+   ========================================================= */
+#previewModal {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 10000 !important;
+    display: none;
+    background: rgba(0, 0, 0, .45);
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+#previewModal .modal-box {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+#previewModal img,
+#previewImg {
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    max-width: calc(100vw - 48px) !important;
+    max-height: calc(100vh - 48px) !important;
+    object-fit: contain !important;
+    margin: 0;
+    border-radius: 12px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
+}
+
+#previewModal .preview-img {
+    max-width: calc(100vw - 48px) !important;
+    max-height: calc(100vh - 48px) !important;
+}
+
+body.modal-open {
+    overflow: hidden;
+}
+
+/* =========================================================
+   5) 響應式微調
+   ========================================================= */
+@media (max-width: 480px) {
+    .upload-content {
+        max-width: 92vw;
+    }
+
+    .upload-thumb {
+        width: 52px;
+        height: 52px;
+    }
+
+    .upload-filename {
+        max-width: 180px;
+    }
 }

@@ -1,9 +1,19 @@
-import { openUploadModal } from './characters.js';
+// public/closureme/js/main.js
+import { openImageSplitModal, openInfoUploadModal } from './characters.js';
 
 const charScroll = document.getElementById("char-scroll");
 const sceneScroll = document.getElementById("scene-scroll");
 const displayArea = document.querySelector(".display-area");
 const logoutBtn = document.getElementById("logoutBtn");
+
+// 綁定三顆按鈕
+document.getElementById("imageBtn")?.addEventListener("click", () => {
+  openImageSplitModal(); // 圖片分割 / 上傳
+});
+document.getElementById("generateBtn")?.addEventListener("click", () => {
+  // openInfoUploadModal(); // 人物資訊 + 模型流程
+});
+// filesBtn 已在 HTML 用 onclick 前往 files.html
 
 if (logoutBtn) {
   logoutBtn.addEventListener("click", () => {
@@ -15,16 +25,11 @@ if (logoutBtn) {
 
 const imageData = {
   char: { images: [], names: [], memoryDescriptions: [], selected: null, timestamp: null },
-  scene: {
-    images: Array.from({ length: 0 }, (_, i) => `../../assets/img/scene/${i + 1}.png`),
-    descriptions: [
-      ""
-    ],
-    selected: null, timestamp: null
-  }
+  scene: { images: Array.from({ length: 0 }, (_, i) => `../../assets/img/scene/${i + 1}.png`),
+           descriptions: [""], selected: null, timestamp: null }
 };
 
-// 載入角色資料
+// 載入角色資料（/api/characters 已由後端提供）
 async function loadCharacters() {
   try {
     const token = localStorage.getItem("token");
@@ -33,10 +38,8 @@ async function loadCharacters() {
       cache: "no-store"
     });
     if (!res.ok) throw new Error("無法載入角色資料");
-
     const payload = await res.json();
     const data = Array.isArray(payload.data) ? payload.data : [];
-
     charScroll.innerHTML = "";
 
     if (data.length === 0) {
@@ -50,7 +53,6 @@ async function loadCharacters() {
 
     for (let i = 0; i < data.length; i++) {
       const char = data[i];
-
       const card = createCard("char", i, char.image_path);
       charScroll.appendChild(card);
 
@@ -70,19 +72,23 @@ async function loadCharacters() {
   }
 }
 
-// 載入文字檔
+// 載入文字檔（目前 memory 檔是 JSON，若要只顯示 content 可在此解析）
 async function loadTextFile(url) {
   if (!url) return "描述檔案不存在";
   try {
     const res = await fetch(url);
     if (!res.ok) return "描述讀取失敗";
-    return await res.text();
+    const txt = await res.text();
+    // 嘗試讀 JSON，只取 content；失敗就顯示原始文本
+    try {
+      const j = JSON.parse(txt);
+      return j?.content ?? txt;
+    } catch { return txt; }
   } catch {
     return "描述載入錯誤";
   }
 }
 
-// 建立角色與場景卡片
 function createCard(type, index, imageUrl) {
   const card = document.createElement("div");
   card.classList.add("select-card");
@@ -98,12 +104,12 @@ function createCard(type, index, imageUrl) {
   return card;
 }
 
-// 點擊選擇卡片
 function handleSelect(card) {
   const type = card.dataset.type;
   const index = parseInt(card.dataset.index);
 
-  document.querySelectorAll(`.select-card[data-type='${type}']`).forEach(c => c.classList.remove("selected"));
+  document.querySelectorAll(`.select-card[data-type='${type}']`)
+    .forEach(c => c.classList.remove("selected"));
   card.classList.add("selected");
 
   imageData[type].selected = index;
@@ -113,7 +119,6 @@ function handleSelect(card) {
   updateDisplay();
 }
 
-// 更新顯示翻轉卡片
 function updateDisplay() {
   displayArea.innerHTML = "";
 
@@ -129,45 +134,33 @@ function updateDisplay() {
 
   const shortDesc = memoryDesc.length > 100 ? memoryDesc.substring(0, 100) + "..." : memoryDesc;
 
-  // 保持原有翻轉結構
   const flipContainer = document.createElement("div");
   flipContainer.className = "flip-container";
-
   const flipCard = document.createElement("div");
   flipCard.className = "flip-card";
 
-  // 正面
   const cardFront = document.createElement("div");
   cardFront.className = "card-face card-front";
-
   const bg = document.createElement("img");
   bg.className = "bg-blur";
   bg.src = src;
-
   const fg = document.createElement("img");
   fg.className = "fg-image";
   fg.src = src;
-
   cardFront.appendChild(bg);
   cardFront.appendChild(fg);
 
-  // 背面
   const cardBack = document.createElement("div");
   cardBack.className = "card-face card-back";
-
   const blur = document.createElement("div");
   blur.className = "blur-background";
   blur.style.backgroundImage = `url(${src})`;
-
   const content = document.createElement("div");
   content.className = "back-content";
-
   const title = document.createElement("h2");
   title.textContent = name;
-
   const desc = document.createElement("p");
   desc.textContent = shortDesc;
-
   content.appendChild(title);
   content.appendChild(desc);
 
@@ -190,7 +183,6 @@ function updateDisplay() {
   flipContainer.onclick = () => flipCard.classList.toggle("flipped");
 }
 
-// 互動視窗
 function openDescriptionModal(fullText) {
   const modal = document.getElementById("descModal");
   const closeBtn = modal.querySelector(".close-btn");
@@ -203,22 +195,21 @@ function openDescriptionModal(fullText) {
   modal.onclick = (e) => { if (e.target === modal) modal.style.display = "none"; };
 }
 
-// 工具
 function updateCount(type) {
   const countEl = document.getElementById(`${type}-count`);
   const total = imageData[type].images.length;
   countEl.textContent = `${imageData[type].selected !== null ? 1 : 0}/${total}`;
 }
 
+// 卡片右側「＋」：我保留你的原邏輯，維持走人物資訊+模型流程
 function addUploadButton() {
   const addCard = document.createElement("a");
   addCard.className = "add-card";
   addCard.textContent = "+";
   charScroll.appendChild(addCard);
-  addCard.onclick = (e) => { e.preventDefault(); openUploadModal(); };
+  addCard.onclick = (e) => { e.preventDefault(); openInfoUploadModal(); };
 }
 
-// 初始化場景卡片
 function initSceneCards() {
   sceneScroll.innerHTML = "";
   imageData.scene.images.forEach((url, index) => {
@@ -229,7 +220,6 @@ function initSceneCards() {
   addCard.className = "add-card";
   addCard.textContent = "+";
   sceneScroll.appendChild(addCard);
-
   addCard.onclick = (e) => { e.preventDefault(); showToast("目前僅開放人物上傳功能", "error"); };
 
   document.getElementById("scene-count").textContent = `0/${imageData.scene.images.length}`;
@@ -237,7 +227,3 @@ function initSceneCards() {
 
 loadCharacters();
 initSceneCards();
-
-
-
-
