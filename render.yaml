@@ -20,4 +20,3 @@ services:
 databases:
   - name: closureme-db
     plan: free
-

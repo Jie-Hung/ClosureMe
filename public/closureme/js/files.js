@@ -114,7 +114,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function getBaseName(fileNameWithExt = "") {
         let base = fileNameWithExt.replace(/\.[^/.]+$/, "");
         base = base.replace(/\.(profile|memory)$/i, "");
-        base = base.replace(/_(head|body)$/i, "");
+        base = base.replace(/_00[12]$/i, "");
         return base;
     }
 

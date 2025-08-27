@@ -295,8 +295,8 @@ exports.splitCharacter = async (req, res) => {
     const bodyFile = body[0];
     const mainFile = main?.[0] || null;
 
-    headFile.originalname = `${filename}_head.png`;
-    bodyFile.originalname = `${filename}_body.png`;
+    headFile.originalname = `${filename}_001.png`;
+    bodyFile.originalname = `${filename}_002.png`;
     if (mainFile && !mainFile.originalname)
       mainFile.originalname = `${filename}.png`;
 
@@ -320,8 +320,13 @@ exports.splitCharacter = async (req, res) => {
 
     const uploadAndSave = async (file, roleType) => {
       const ext = ".png";
+      let suffix = "000";
+      if (roleType === "head") suffix = "001";
+      else if (roleType === "body") suffix = "002";
+      else if (roleType === "main") suffix = "000"; 
+
       const newFileName = await getUniqueFileNameFromDB(
-        `${safeBase}_${roleType === "main" ? "" : roleType}`.replace(/_$/, ""),
+        suffix === "000" ? safeBase : `${safeBase}_${suffix}`,
         ext
       );
       const key = `uploads/${newFileName}`;

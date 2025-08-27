@@ -129,8 +129,8 @@ export function openImageSplitModal() {
                             const fd = new FormData();
                             fd.append("filename", fileName);
                             fd.append("main", mainBlob, `${fileName}.png`);
-                            fd.append("head", headBlob, `${fileName}_head.png`);
-                            fd.append("body", bodyBlob, `${fileName}_body.png`);
+                            fd.append("head", headBlob, `${fileName}_001.png`);
+                            fd.append("body", bodyBlob, `${fileName}_002.png`);
 
                             const res = await fetch("/api/split-character", {
                                 method: "POST",
