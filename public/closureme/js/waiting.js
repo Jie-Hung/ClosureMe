@@ -20,7 +20,7 @@ export function showWaitingModal(uploadBatch, safeBaseName) {
     let polling = true;
     let retryCount = 0;
     const intervalMs = 3000;     // 每 3 秒輪詢一次
-    const maxRetry = 400;        // 最多輪詢 400 次 ≈ 20 分鐘
+    const maxRetry = 600;        // 最多輪詢 400 次 ≈ 20 分鐘
 
     async function checkModel() {
         if (!polling) return;

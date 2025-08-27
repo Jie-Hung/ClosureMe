@@ -2,6 +2,7 @@ import os
 import json
 import boto3
 from dotenv import load_dotenv
+from botocore.exceptions import ClientError
 
 load_dotenv()
 
@@ -10,7 +11,9 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET")
 
 with open("config.json", "r") as f:
-    fbx_dir = json.load(f)["fbx_upload_dir"]
+    config = json.load(f)
+    fbx_dir = config["fbx_upload_dir"]
+    model_type = config.get("model_type", "init")  
 
 os.makedirs(fbx_dir, exist_ok=True)
 
@@ -20,12 +23,45 @@ s3 = boto3.client(
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
 )
 
+def fbx_exists_in_s3(s3_key):
+    """
+    檢查 S3 上是否已有相同的 .fbx 檔案
+    """
+    try:
+        s3.head_object(Bucket=AWS_S3_BUCKET, Key=s3_key)
+        return True
+    except ClientError as e:
+        if e.response['Error']['Code'] == "404":
+            return False
+        else:
+            raise e
+
+def upload_to_s3(local_path, s3_key):
+    """
+    上傳檔案到 S3
+    """
+    try:
+        s3.upload_file(local_path, AWS_S3_BUCKET, s3_key)
+        print(f"✅ 已上傳至 S3：{s3_key}")
+        return True
+    except ClientError as e:
+        print(f"❌ 上傳失敗：{e}")
+        return False
+
 for file in os.listdir(fbx_dir):
     if file.endswith(".fbx"):
         local_path = os.path.join(fbx_dir, file)
-        s3_key = f"fbx/temp/{file.replace('.fbx', '_init.fbx')}"
-        try:
-            s3.upload_file(local_path, AWS_S3_BUCKET, s3_key)
-            print(f"✅ 已上傳至 S3：{s3_key}")
-        except Exception as e:
-            print(f"❌ 上傳失敗：{file}，錯誤：{e}")
+
+        base_name, ext = os.path.splitext(file)
+        if not base_name.endswith("_init"):
+            new_file_name = f"{base_name}_init{ext}"
+        else:
+            new_file_name = file
+
+        s3_key = f"fbx/{'temp' if model_type == 'init' else 'final'}/{new_file_name}"
+
+        if fbx_exists_in_s3(s3_key):
+            print(f"⚠️ 檔案已存在於 S3，略過：{s3_key}")
+            continue
+
+        upload_to_s3(local_path, s3_key)

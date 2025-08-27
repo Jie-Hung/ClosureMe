@@ -18,6 +18,7 @@ router.get("/proxy-download", characterController.proxyDownload);
 router.post("/split-character", authMiddleware, upload.fields([{ name: "main", maxCount: 1 }, { name: "head", maxCount:1 }, { name: "body", maxCount:1 }]), characterController.splitCharacter);
 router.get("/main-images-for-binding", authMiddleware, fileController.getMainImagesForBinding);
 router.get("/get-pending-images", characterController.getPendingImages);
+router.post("/upload-complete", characterController.markFbxComplete);
 
 // 舊流程
 router.post("/upload-character", authMiddleware, upload.fields([{ name: "file" }, { name: "voice", maxCount:1 }]), characterController.upload);

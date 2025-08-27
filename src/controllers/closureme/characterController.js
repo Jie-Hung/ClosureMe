@@ -545,19 +545,61 @@ exports.upload = async (req, res) => {
 exports.getPendingImages = async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT ci.id, ci.file_name, ci.file_path, ci.upload_batch
+      SELECT ci.id,
+             ci.file_name,
+             ci.file_path,
+             ci.upload_batch
       FROM char_images ci
       WHERE ci.role_type IN ('head', 'body')
         AND ci.upload_batch IS NOT NULL
         AND NOT EXISTS (
           SELECT 1 FROM char_model cm
-          WHERE cm.image_id = ci.id
+          WHERE cm.image_id IN (
+            SELECT id FROM char_images
+            WHERE upload_batch = ci.upload_batch
+          )
+          AND cm.model_type = 'init'
         )
-      ORDER BY ci.uploaded_at ASC
+      ORDER BY ci.upload_batch, ci.uploaded_at ASC
     `);
+
     res.status(200).json(result.rows);
   } catch (err) {
     console.error("❌ getPendingImages error:", err);
+    res.status(500).json({ message: "伺服器錯誤" });
+  }
+};
+
+exports.markFbxComplete = async (req, res) => {
+  try {
+    const { upload_batch, file_path, model_type } = req.body;
+
+    if (!upload_batch || !file_path) {
+      return res.status(400).json({ message: "缺少必要參數" });
+    }
+
+    // 找到該批次的 head 圖片
+    const imageRes = await pool.query(
+      `SELECT id FROM char_images WHERE upload_batch = $1 AND role_type = 'head' LIMIT 1`,
+      [upload_batch]
+    );
+
+    if (imageRes.rows.length === 0) {
+      return res.status(404).json({ message: "找不到對應的圖片" });
+    }
+
+    const imageId = imageRes.rows[0].id;
+
+    // 寫入 char_model
+    await pool.query(
+      `INSERT INTO char_model (image_id, file_path, model_type, created_at)
+       VALUES ($1, $2, $3, NOW())`,
+      [imageId, file_path, model_type || "init"]
+    );
+
+    res.status(201).json({ message: "FBX 模型已記錄" });
+  } catch (err) {
+    console.error("❌ markFbxComplete error:", err);
     res.status(500).json({ message: "伺服器錯誤" });
   }
 };
