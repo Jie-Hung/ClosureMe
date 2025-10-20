@@ -13,7 +13,6 @@ AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET")
 with open("config.json", "r") as f:
     config = json.load(f)
     fbx_dir = config["fbx_upload_dir"]
-    model_type = config.get("model_type", "init")  
 
 os.makedirs(fbx_dir, exist_ok=True)
 
@@ -24,9 +23,6 @@ s3 = boto3.client(
 )
 
 def fbx_exists_in_s3(s3_key):
-    """
-    檢查 S3 上是否已有相同的 .fbx 檔案
-    """
     try:
         s3.head_object(Bucket=AWS_S3_BUCKET, Key=s3_key)
         return True
@@ -37,9 +33,6 @@ def fbx_exists_in_s3(s3_key):
             raise e
 
 def upload_to_s3(local_path, s3_key):
-    """
-    上傳檔案到 S3
-    """
     try:
         s3.upload_file(local_path, AWS_S3_BUCKET, s3_key)
         print(f"✅ 已上傳至 S3：{s3_key}")
@@ -51,17 +44,14 @@ def upload_to_s3(local_path, s3_key):
 for file in os.listdir(fbx_dir):
     if file.endswith(".fbx"):
         local_path = os.path.join(fbx_dir, file)
-
         base_name, ext = os.path.splitext(file)
-        if not base_name.endswith("_init"):
-            new_file_name = f"{base_name}_init{ext}"
-        else:
-            new_file_name = file
 
-        s3_key = f"fbx/{'temp' if model_type == 'init' else 'final'}/{new_file_name}"
+        new_file_name = f"{base_name}{ext}"
+
+        s3_key = f"fbx/temp/{new_file_name}"
 
         if fbx_exists_in_s3(s3_key):
-            print(f"⚠️ 檔案已存在於 S3，略過：{s3_key}")
+            print(f"⚠️  檔案已存在於 S3，略過：{s3_key}")
             continue
 
         upload_to_s3(local_path, s3_key)

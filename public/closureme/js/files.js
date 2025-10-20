@@ -71,23 +71,31 @@ document.addEventListener("DOMContentLoaded", () => {
             const card = document.createElement("div");
             card.className = "file-card";
             card.innerHTML = `
-        <img src="${file.image_path}" alt="${nameWithoutExt}">
-        <div class="file-name">${nameWithoutExt}</div>
-        <div class="file-time">${new Date(file.uploaded_at).toLocaleString()}</div>
+                <img src="${file.image_path}" alt="${nameWithoutExt}">
+                <div class="file-name">${nameWithoutExt}</div>
+                <div class="file-time">${new Date(file.uploaded_at).toLocaleString()}</div>
+                <div class="btn-group">
+                    <button class="file-btn btn-download" data-url="${file.image_path}" data-filename="${nameWithoutExt}" data-label="圖片">圖片</button>
+                    <button class="file-btn btn-download" data-url="${file.profile_path || ""}" data-filename="${nameWithoutExt}" data-label="關鍵人物資訊" ${file.profile_path ? "" : "disabled"}>資訊</button>
+                    <button class="file-btn btn-download" data-url="${file.memory_path || ""}" data-filename="${nameWithoutExt}" data-label="記憶描述" ${file.memory_path ? "" : "disabled"}>記憶</button>
+                </div>
+                <div class="btn-group">
+                    <button class="file-btn btn-rename" data-filename="${file.file_name}" data-upload-batch="${file.upload_batch}">重新命名</button>
+                    <button class="file-btn btn-delete" data-name="${file.file_name}">刪除</button>
+                </div>
+            `;
 
-        <div class="btn-group">
-            <button class="file-btn btn-download" data-url="${file.image_path}" data-filename="${nameWithoutExt}" data-label="圖片">圖片</button>
-            <button class="file-btn btn-download" data-url="${file.profile_path || ""}" data-filename="${nameWithoutExt}" data-label="外觀描述" ${file.profile_path ? "" : "disabled"}>外觀</button>
-            <button class="file-btn btn-download" data-url="${file.memory_path || ""}" data-filename="${nameWithoutExt}" data-label="記憶描述" ${file.memory_path ? "" : "disabled"}>記憶</button>
-        </div>
-        <div class="btn-group">
-            <button class="file-btn btn-rename" data-filename="${file.file_name}" data-upload-batch="${file.upload_batch}">重新命名</button>
-            <button class="file-btn btn-delete" data-name="${file.file_name}">刪除</button>
-        </div>
-        `;
+            card.onclick = () => {
+                if (file.image_id) {
+                    localStorage.setItem("selectedCharacterId", file.image_id);
+                    console.log("✅ 已選擇角色 ID：", file.image_id);
+                } else {
+                    console.warn("⚠️ 此角色沒有 image_id");
+                }
+            };
+
             fileCards.appendChild(card);
 
-            // 檢查是否有初始模型 .fbx，若有就顯示下載按鈕
             const baseName = nameWithoutExt;
             const fbxUrl = `https://closureme-assets.s3.amazonaws.com/fbx/temp/${baseName}_init.fbx`;
 
@@ -118,7 +126,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return base;
     }
 
-    // 下載按鈕事件（已移除語音、模型）
+    // 下載按鈕事件
     function bindDownloadButtons() {
         document.querySelectorAll(".btn-download").forEach(btn => {
             btn.onclick = async () => {
@@ -127,7 +135,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const fileName = btn.dataset.filename;
 
                 if (!url || !url.startsWith("http")) {
-                    alert("❌ 找不到檔案路徑！");
+                    showToast("找不到檔案路徑！", "error");
                     return;
                 }
 
@@ -139,7 +147,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             : (label === "圖片" ? "png" : "json");
 
                         let suffix = "";
-                        if (label === "外觀描述") suffix = "_profile";
+                        if (label === "關鍵人物資訊") suffix = "_profile";
                         else if (label === "記憶描述") suffix = "_memory";
 
                         const saveName = (label === "圖片")
@@ -147,11 +155,9 @@ document.addEventListener("DOMContentLoaded", () => {
                             : `${fileName}${suffix}.${ext}`;
 
                         if (label === "圖片") {
-                            // 透過 proxy 下載圖片
                             const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(saveName)}`;
                             window.location.href = proxyUrl;
                         } else {
-                            // JSON 直接 fetch blob 存檔
                             const res = await fetch(url);
                             if (!res.ok) throw new Error("下載失敗");
                             const blob = await res.blob();
@@ -166,7 +172,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         }
                     } catch (error) {
                         console.error("下載錯誤：", error);
-                        alert("下載失敗");
+                        showToast("下載失敗", "error");
                     }
                 }
             };
@@ -181,7 +187,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 const fileNameWithExt = button.getAttribute("data-filename") || "";
                 const fileName = getBaseName(fileNameWithExt);
 
-                const inputName = prompt("輸入新的檔名（不含副檔名）：")?.trim();
+                const inputName = prompt("輸入新的人物名稱：")?.trim();
                 if (!inputName) return;
                 const newName = inputName.replace(/\s+/g, "_");
 
@@ -200,10 +206,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     const data = await handleApiResponse(res);
                     if (!data) return;
                     if (!res.ok) throw new Error(data.message);
-                    alert("重新命名成功");
+                    showToast("重新命名成功", "success");
                     loadFiles();
                 } catch (error) {
-                    alert(`重新命名失敗：${error.message}`);
+                    showToast("重新命名失敗", "error");
                 }
             };
         });
@@ -215,10 +221,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 const fileNameWithExt = btn.dataset.name || "";
                 const fileName = getBaseName(fileNameWithExt);
                 if (!fileName) {
-                    alert("找不到要刪除的檔名");
+                    showToast("找不到要刪除的檔名", "error");
                     return;
                 }
-                if (!confirm(`確定要刪除角色「${fileName}」嗎？`)) return;
+                if (!confirm(`確定要刪除角色 ${fileName} 嗎？`)) return;
 
                 try {
                     const res = await fetch("/api/delete-character", {
@@ -232,17 +238,17 @@ document.addEventListener("DOMContentLoaded", () => {
                     const data = await handleApiResponse(res);
                     if (!data) return;
                     if (!res.ok) throw new Error(data.message);
-                    alert("刪除成功");
+                    showToast("刪除成功", "success");
                     loadFiles();
                 } catch (error) {
-                    alert(`刪除失敗：${error.message}`);
+                    showToast("刪除失敗", "error");
                 }
             };
         });
     }
 
-    searchInput.addEventListener("input", renderFiles);
-    sortSelect.addEventListener("change", renderFiles);
+    searchInput.addEventListener("input", () => renderFiles(allFiles));
+    sortSelect.addEventListener("change", () => renderFiles(allFiles));
 
     loadFiles();
 });

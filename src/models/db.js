@@ -1,5 +1,5 @@
 // PostgreSQL 連線設定
-const { Pool } = require("pg");
+const { Pool } = require("pg"); 
 require("dotenv").config();
 
 const url = process.env.DATABASE_URL || "";

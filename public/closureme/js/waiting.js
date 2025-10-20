@@ -1,11 +1,11 @@
-
-export function showWaitingModal(uploadBatch, safeBaseName) {
+// waiting.js
+export function showWaitingModal(uploadBatch, safeBaseName, customTitle = "初始模型生成中...") {
     const modal = document.createElement("div");
     modal.className = "waiting-modal";
 
     modal.innerHTML = `
         <div class="waiting-box">
-            <h2 class="waiting-title">初始模型生成中...</h2>
+            <h2 class="waiting-title">${customTitle}</h2>
             <p class="waiting-subtitle">角色名稱：<span class="char-name">${safeBaseName || "unknown"}</span></p>
             <div class="waiting-bar">
                 <div class="waiting-bar-fill"></div>
@@ -19,8 +19,8 @@ export function showWaitingModal(uploadBatch, safeBaseName) {
 
     let polling = true;
     let retryCount = 0;
-    const intervalMs = 3000;     // 每 3 秒輪詢一次
-    const maxRetry = 600;        // 最多輪詢 400 次 ≈ 20 分鐘
+    const intervalMs = 3000;
+    const maxRetry = 600;
 
     async function checkModel() {
         if (!polling) return;
@@ -43,7 +43,7 @@ export function showWaitingModal(uploadBatch, safeBaseName) {
                         <button class="btn-skip">取消</button>
                     </div>
                 `;
-                
+
                 const downloadBtn = box.querySelector(".btn-download");
                 const skipBtn = box.querySelector(".btn-skip");
 

@@ -60,13 +60,11 @@ body {
 .file-table th:nth-child(2),
 .file-table td:nth-child(2) {
     min-width: 200px;
-    /* 名稱欄 */
 }
 
 .file-table th:nth-child(4),
 .file-table td:nth-child(4) {
     min-width: 160px;
-    /* 日期欄 */
 }
 
 /* 表頭樣式 */
@@ -80,7 +78,6 @@ body {
 /* 排序圖示 */
 .file-table thead th span.sort-icon::after {
     content: "⮃";
-    /* 預設箭頭 */
     margin-left: 6px;
     color: #6c5b3d;
     opacity: 0.6;
@@ -183,12 +180,10 @@ body {
     justify-content: center;
     gap: 8px;
     margin-bottom: 10px;
-    /* 讓兩組按鈕間距一致 */
 }
 
 .file-btn {
     flex: 1;
-    /* 每個按鈕寬度一致 */
     min-width: 80px;
     padding: 8px 12px;
     font-size: 14px;

@@ -2,10 +2,11 @@
 const pool = require("../../models/db");
 const path = require("path");
 const fs = require("fs").promises;
-const { MODE, uploadBufferToS3 } = require("../../storage");
+const { MODE, uploadBufferToS3 } = require("../../../public/utils/storage");
 const https = require("https");
 const http = require("http");
 const { v4: uuidv4 } = require("uuid");
+const { spawn } = require("child_process");
 
 /** ---------------------------
  * 共用工具
@@ -13,13 +14,14 @@ const { v4: uuidv4 } = require("uuid");
 function toSafeBaseName(name) {
   let base = String(name || "")
     .replace(/\.[^.]+$/, "")
-    .replace(/[^A-Za-z0-9_-]+/g, "_")
+    .replace(/\s+/g, "_")
+    .replace(/[^\w\u4e00-\u9fa5-]+/g, "")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
   return base || "file";
 }
 
-// 檔名不重複（於資料庫中避免撞名）
+// 檔名不重複
 async function getUniqueFileNameFromDB(baseName, ext) {
   const base = toSafeBaseName(baseName);
   const safeExt = (ext || ".png").toLowerCase();
@@ -41,7 +43,7 @@ async function getUniqueFileNameFromDB(baseName, ext) {
   return candidate;
 }
 
-// 由 imageId 反推「角色基底名」：KD.png → KD、KD_head.png → KD
+// 由 imageId 反推「角色基底名」
 async function getBaseNameByImageId(imageId) {
   const r = await pool.query(
     `SELECT file_name, role_type FROM char_images WHERE id = $1`,
@@ -51,23 +53,46 @@ async function getBaseNameByImageId(imageId) {
   const { file_name, role_type } = r.rows[0];
   const base =
     role_type && role_type !== "main"
-      ? file_name.split("_", 1)[0] // KD_head.png → KD
-      : file_name.split(".", 1)[0]; // KD.png → KD
+      ? file_name.split("_", 1)[0]
+      : file_name.split(".", 1)[0];
   return toSafeBaseName(base);
 }
 
 const uploadDir = path.join(__dirname, "../../../public/uploads");
 
 /** ---------------------------
- * （新）只儲存人物資訊：profile/memory/voice
- * 不處理任何圖片
- * POST /api/character-info   (multipart; fields: imageId, profile?, memory?, voice?)
+ * header 安全處理工具
  * -------------------------- */
-// 以角色名為基底，統一命名：<base>_profile.json / _memory.json / _voice.wav
+function sanitizeAsciiFilename(name) {
+  const cleaned = String(name).replace(/[\r\n"]/g, "_");
+  return cleaned.replace(/[^\x20-\x7E]/g, "_").replace(/[\\\/:*?<>|]/g, "_");
+}
+
+function encodeRFC5987(str) {
+  return encodeURIComponent(str)
+    .replace(/['()]/g, escape)
+    .replace(/\*/g, "%2A")
+    .replace(/%(7C|60|5E)/g, "%25$1");
+}
+
+function setDownloadHeaders(res, filename, contentType, contentLength) {
+  const ascii = sanitizeAsciiFilename(filename);
+  const utf8 = encodeRFC5987(filename);
+  res.setHeader("Content-Type", contentType || "application/octet-stream");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`
+  );
+  if (contentLength && Number.isFinite(Number(contentLength))) {
+    res.setHeader("Content-Length", String(contentLength));
+  }
+}
+
+// 儲存人物資訊：profile/memory/voice
 exports.saveCharacterInfo = async (req, res) => {
   try {
     const userId = req.user_id;
-    const imageId = req.body.imageId; // 前端傳駝峰
+    const imageId = req.body.imageId;
     const profileRaw = (req.body.profile ?? "").toString();
     const memoryRaw = (req.body.memory ?? "").toString();
     const voice = (req.files?.voice && req.files.voice[0]) || null;
@@ -76,25 +101,30 @@ exports.saveCharacterInfo = async (req, res) => {
       return res.status(400).json({ message: "缺少 imageId" });
     }
 
+    if (!voice) {
+      return res.status(400).json({ message: "❌ 必須上傳 wav 語音檔" });
+    }
+    const voiceName = (voice.originalname || "").toLowerCase();
+    const voiceIsWavExt = voiceName.endsWith(".wav");
+    const voiceIsWavType = ["audio/wav", "audio/x-wav"].includes(
+      (voice.mimetype || "").toLowerCase()
+    );
+    if (!voiceIsWavExt && !voiceIsWavType) {
+      return res.status(400).json({ message: "❌ 語音檔必須是 .wav 格式" });
+    }
+
     const base = await getBaseNameByImageId(imageId);
 
-    // 轉漂亮 JSON（若不是 JSON 就包成 {text: "..."}）
     const toPrettyJsonBuffer = (text) => {
       let obj;
-      try {
-        obj = JSON.parse(text);
-      } catch {
-        obj = { text: text };
-      }
+      try { obj = JSON.parse(text); } catch { obj = { text: text }; }
       return Buffer.from(JSON.stringify(obj, null, 2), "utf-8");
     };
 
-    // 先刪舊紀錄，避免多筆
     await pool.query(`DELETE FROM char_profile WHERE image_id=$1`, [imageId]);
     await pool.query(`DELETE FROM char_memory  WHERE image_id=$1`, [imageId]);
     await pool.query(`DELETE FROM char_voice   WHERE image_id=$1`, [imageId]);
 
-    // profile.json
     const profileKey = `uploads/${base}_profile.json`;
     const profileUrl = await uploadBufferToS3({
       buffer: toPrettyJsonBuffer(profileRaw),
@@ -106,31 +136,27 @@ exports.saveCharacterInfo = async (req, res) => {
       [imageId, profileUrl]
     );
 
-    // memory.json
-    const memoryKey = `uploads/${base}_memory.json`;
+    const memoryKey = `uploads/${base}_memory.txt`;
     const memoryUrl = await uploadBufferToS3({
-      buffer: toPrettyJsonBuffer(memoryRaw),
+      buffer: Buffer.from(memoryRaw, "utf-8"),
       key: memoryKey,
-      contentType: "application/json",
+      contentType: "text/plain",
     });
     await pool.query(
       `INSERT INTO char_memory (image_id, file_path) VALUES ($1,$2)`,
       [imageId, memoryUrl]
     );
 
-    // voice.wav（可選）
-    if (voice) {
-      const voiceKey = `uploads/${base}_voice.wav`;
-      const voiceUrl = await uploadBufferToS3({
-        buffer: voice.buffer,
-        key: voiceKey,
-        contentType: voice.mimetype || "audio/wav",
-      });
-      await pool.query(
-        `INSERT INTO char_voice (image_id, file_path) VALUES ($1,$2)`,
-        [imageId, voiceUrl]
-      );
-    }
+    const voiceKey = `uploads/${base}_voice.wav`;
+    const voiceUrl = await uploadBufferToS3({
+      buffer: voice.buffer,
+      key: voiceKey,
+      contentType: "audio/wav",
+    });
+    await pool.query(
+      `INSERT INTO char_voice (image_id, file_path) VALUES ($1,$2)`,
+      [imageId, voiceUrl]
+    );
 
     return res.json({ message: "人物資訊已保存（JSON 內容 & 防快取）" });
   } catch (err) {
@@ -139,15 +165,11 @@ exports.saveCharacterInfo = async (req, res) => {
   }
 };
 
-/** ---------------------------
- * （新）上傳 3D 模型（與 imageId 綁定）
- * POST /api/upload-model   (multipart; fields: imageId, model)
- * -------------------------- */
-// 模型統一命名：<base>.<fbx|glb|gltf>（例如 KD.fbx）
+// 上傳 3D 模型
 exports.uploadModel = async (req, res) => {
   try {
     const userId = req.user_id;
-    const imageId = req.body.imageId || req.body.image_id; // 相容舊欄位
+    const imageId = req.body.imageId || req.body.image_id;
     const file = req.file;
 
     if (!userId || !imageId || !file) {
@@ -155,18 +177,20 @@ exports.uploadModel = async (req, res) => {
     }
 
     const base = await getBaseNameByImageId(imageId);
-    const ext = (file.originalname?.split(".").pop() || "").toLowerCase();
-    if (!["fbx", "glb", "gltf"].includes(ext)) {
-      return res.status(400).json({ message: "僅支援 .fbx " });
+
+    const rawName = (file.originalname || "").toLowerCase();
+    const ext = rawName.split(".").pop() || "";
+    if (ext !== "fbx") {
+      return res.status(400).json({ message: "❌ 模型檔必須是 .fbx 格式" });
     }
 
     await pool.query(`DELETE FROM char_model WHERE image_id=$1`, [imageId]);
 
-    const key = `uploads/${base}.${ext}`;
+    const key = `uploads/${base}.fbx`;
     const fileUrl = await uploadBufferToS3({
       buffer: file.buffer,
       key,
-      contentType: file.mimetype || "application/octet-stream",
+      contentType: "application/octet-stream",
     });
 
     await pool.query(
@@ -174,60 +198,86 @@ exports.uploadModel = async (req, res) => {
       [imageId, fileUrl]
     );
 
-    return res.json({ message: "模型已上傳（防快取）", file_path: fileUrl });
+    return res.json({ message: "模型已上傳（僅 .fbx）", file_path: fileUrl });
   } catch (err) {
     console.error("uploadModel error:", err);
     return res.status(500).json({ message: "模型上傳失敗", error: err.message });
   }
 };
 
-/** ---------------------------
- * （保留）伺服器端代理下載
- * GET /api/proxy-download?url=&filename=
- * -------------------------- */
+// 伺服器端代理下載
 exports.proxyDownload = async (req, res) => {
   const { url, filename } = req.query;
-
   if (!url || !filename) {
     return res.status(400).json({ message: "缺少參數 url 或 filename" });
   }
 
+  let target;
   try {
-    const client = url.startsWith("https") ? https : http;
+    target = new URL(url);
+  } catch {
+    return res.status(400).json({ message: "url 非法" });
+  }
 
-    client
-      .get(url, (fileRes) => {
-        if (fileRes.statusCode !== 200) {
-          return res
-            .status(fileRes.statusCode)
-            .json({ message: "遠端資源無法存取" });
-        }
+  const MAX_REDIRECTS = 3;
+  const visited = new Set();
 
-        res.setHeader(
-          "Content-Type",
-          fileRes.headers["content-type"] || "application/octet-stream"
-        );
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="${filename}"`
-        );
+  function fetchOnce(currentUrl, redirects = 0) {
+    if (redirects > MAX_REDIRECTS) {
+      return res.status(508).json({ message: "轉址次數過多" });
+    }
+    if (visited.has(currentUrl)) {
+      return res.status(508).json({ message: "偵測到循環轉址" });
+    }
+    visited.add(currentUrl);
 
-        fileRes.pipe(res);
-      })
-      .on("error", (err) => {
-        console.error("代理下載錯誤：", err);
+    const client = currentUrl.startsWith("https") ? https : http;
+    const reqUpstream = client.get(currentUrl, (fileRes) => {
+      if (
+        [301, 302, 303, 307, 308].includes(fileRes.statusCode) &&
+        fileRes.headers.location
+      ) {
+        const nextUrl = new URL(fileRes.headers.location, currentUrl).toString();
+        fileRes.resume();
+        return fetchOnce(nextUrl, redirects + 1);
+      }
+
+      if (fileRes.statusCode !== 200) {
+        fileRes.resume();
+        return res
+          .status(fileRes.statusCode || 502)
+          .json({ message: "遠端資源無法存取" });
+      }
+
+      setDownloadHeaders(
+        res,
+        filename,
+        fileRes.headers["content-type"],
+        fileRes.headers["content-length"]
+      );
+
+      fileRes.pipe(res);
+    });
+
+    reqUpstream.on("error", (err) => {
+      console.error("代理下載錯誤：", err);
+      if (!res.headersSent) {
         res.status(500).json({ message: "代理下載失敗" });
-      });
+      } else {
+        res.destroy(err);
+      }
+    });
+  }
+
+  try {
+    fetchOnce(target.toString(), 0);
   } catch (error) {
     console.error("proxyDownload 錯誤：", error);
     res.status(500).json({ message: "伺服器錯誤" });
   }
 };
 
-/** ---------------------------
- * （保留）下載描述用資訊整包
- * GET /api/download?fileName=主圖檔名(含副檔名)
- * -------------------------- */
+// 下載描述用資訊
 exports.download = async (req, res) => {
   const { fileName } = req.query;
 
@@ -239,8 +289,7 @@ exports.download = async (req, res) => {
   }
 
   try {
-    const result = await pool.query(
-      `
+    const result = await pool.query(`
       SELECT i.file_name,
              i.file_path AS image_path,
              p.file_path AS profile_path,
@@ -252,9 +301,7 @@ exports.download = async (req, res) => {
       LEFT JOIN char_voice   v ON i.id = v.image_id
       WHERE i.file_name = $1
         AND i.role_type = 'main'
-      `,
-      [fileName]
-    );
+    `, [fileName]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: "查無對應角色主圖" });
@@ -277,15 +324,17 @@ exports.download = async (req, res) => {
   }
 };
 
-/** ---------------------------
- * 圖片分割上傳（head/body）
- * POST /api/split-character   (multipart; fields: filename, head, body, upload_batch?)
- * -------------------------- */
+// 圖片分割上傳（head/body）
 exports.splitCharacter = async (req, res) => {
   try {
     const { head, body, main } = req.files;
-    const filename = req.body.filename || `char_${uuidv4()}`;
+    const rawName = req.body.filename?.trim() || `char_${uuidv4()}`;
     const userId = req.user_id;
+
+    let safeBase = toSafeBaseName(rawName);
+    if (!/[\w\u4e00-\u9fa5-]/.test(safeBase) || safeBase === "file") {
+      safeBase = `char_${uuidv4()}`;
+    }
 
     if (!head || !body) {
       return res.status(400).json({ message: "缺少圖片檔案" });
@@ -295,26 +344,20 @@ exports.splitCharacter = async (req, res) => {
     const bodyFile = body[0];
     const mainFile = main?.[0] || null;
 
-    headFile.originalname = `${filename}_001.png`;
-    bodyFile.originalname = `${filename}_002.png`;
+    headFile.originalname = `${safeBase}_001.png`;
+    bodyFile.originalname = `${safeBase}_002.png`;
     if (mainFile && !mainFile.originalname)
-      mainFile.originalname = `${filename}.png`;
+      mainFile.originalname = `${safeBase}.png`;
 
-    const safeBase = toSafeBaseName(filename);
-
-    // 取得 / 建立同一個 upload_batch
     let uploadBatch = req.body.upload_batch || req.body.uploadBatch || null;
     if (!uploadBatch) {
-      const anyQ = await pool.query(
-        `
+      const anyQ = await pool.query(`
         SELECT upload_batch FROM char_images
         WHERE user_id = $1
           AND (split_part(file_name,'.',1) = $2 OR split_part(file_name,'_',1) = $2)
         ORDER BY uploaded_at DESC
         LIMIT 1
-        `,
-        [userId, safeBase]
-      );
+      `, [userId, safeBase]);
       uploadBatch = anyQ.rowCount ? anyQ.rows[0].upload_batch : uuidv4();
     }
 
@@ -323,7 +366,7 @@ exports.splitCharacter = async (req, res) => {
       let suffix = "000";
       if (roleType === "head") suffix = "001";
       else if (roleType === "body") suffix = "002";
-      else if (roleType === "main") suffix = "000"; 
+      else if (roleType === "main") suffix = "000";
 
       const newFileName = await getUniqueFileNameFromDB(
         suffix === "000" ? safeBase : `${safeBase}_${suffix}`,
@@ -375,10 +418,7 @@ exports.splitCharacter = async (req, res) => {
   }
 };
 
-/** ---------------------------
- * （相容）舊的一次性上傳接口（圖片＋描述＋語音）
- * 仍保留，但新前端不再使用
- * -------------------------- */
+// 舊的一次性上傳接口（圖片＋描述＋語音），暫時保留
 exports.upload = async (req, res) => {
   try {
     const { profile, memory, filename } = req.body;
@@ -396,17 +436,14 @@ exports.upload = async (req, res) => {
     let upload_batch = req.body.uploadBatch || req.body.upload_batch || null;
 
     if (!upload_batch) {
-      const q = await pool.query(
-        `
+      const q = await pool.query(`
         SELECT upload_batch
         FROM char_images
         WHERE user_id = $1
           AND (split_part(file_name, '.', 1) = $2 OR split_part(file_name, '_', 1) = $2)
         ORDER BY uploaded_at DESC
         LIMIT 1
-        `,
-        [user_id, cleanName]
-      );
+      `, [user_id, cleanName]);
       upload_batch = q.rowCount ? q.rows[0].upload_batch : uuidv4();
     }
 
@@ -558,7 +595,6 @@ exports.getPendingImages = async (req, res) => {
             SELECT id FROM char_images
             WHERE upload_batch = ci.upload_batch
           )
-          AND cm.model_type = 'init'
         )
       ORDER BY ci.upload_batch, ci.uploaded_at ASC
     `);
@@ -570,36 +606,180 @@ exports.getPendingImages = async (req, res) => {
   }
 };
 
-exports.markFbxComplete = async (req, res) => {
+// 下載語音檔（wav）
+exports.downloadVoice = async (req, res) => {
+  const { imageId, voiceUrl } = req.body;
+
   try {
-    const { upload_batch, file_path, model_type } = req.body;
+    let finalVoiceUrl = voiceUrl;
 
-    if (!upload_batch || !file_path) {
-      return res.status(400).json({ message: "缺少必要參數" });
+    if (!finalVoiceUrl && imageId) {
+      const result = await pool.query(`
+        SELECT v.file_path
+        FROM char_voice v
+        WHERE v.image_id = $1
+        ORDER BY v.id DESC
+        LIMIT 1
+      `, [imageId]);
+
+      if (result.rowCount > 0) {
+        finalVoiceUrl = result.rows[0].file_path;
+      } else {
+        return res.status(404).json({ message: "找不到對應的語音檔" });
+      }
     }
 
-    // 找到該批次的 head 圖片
-    const imageRes = await pool.query(
-      `SELECT id FROM char_images WHERE upload_batch = $1 AND role_type = 'head' LIMIT 1`,
-      [upload_batch]
-    );
-
-    if (imageRes.rows.length === 0) {
-      return res.status(404).json({ message: "找不到對應的圖片" });
+    if (!finalVoiceUrl) {
+      return res.status(400).json({ message: "缺少有效的 voice 路徑資訊" });
     }
 
-    const imageId = imageRes.rows[0].id;
+    const args = ["scripts/download_voice.py", "--url", finalVoiceUrl];
+    const pythonProcess = spawn("python", args, {
+      cwd: process.cwd(),
+    });
 
-    // 寫入 char_model
-    await pool.query(
-      `INSERT INTO char_model (image_id, file_path, model_type, created_at)
-       VALUES ($1, $2, $3, NOW())`,
-      [imageId, file_path, model_type || "init"]
-    );
+    let stdout = "", stderr = "";
+    pythonProcess.stdout.on("data", data => { stdout += data.toString(); });
+    pythonProcess.stderr.on("data", data => { stderr += data.toString(); });
 
-    res.status(201).json({ message: "FBX 模型已記錄" });
+    pythonProcess.on("close", code => {
+      if (code === 0) {
+        res.json({ message: "下載成功", output: stdout });
+      } else {
+        res.status(500).json({ message: "下載失敗", error: stderr });
+      }
+    });
+
   } catch (err) {
-    console.error("❌ markFbxComplete error:", err);
-    res.status(500).json({ message: "伺服器錯誤" });
+    console.error("downloadVoice error:", err);
+    res.status(500).json({ message: "伺服器錯誤", error: err.message });
+  }
+};
+
+// 下載模型檔（fbx）
+exports.downloadModel = async (req, res) => {
+  const { fileName } = req.body;
+
+  if (!fileName) {
+    return res.status(400).json({ message: "缺少 fileName 參數" });
+  }
+
+  try {
+    const args = ["scripts/download_model.py", "--file-name", fileName];
+    const pythonProcess = spawn("python", args, {
+      cwd: process.cwd(),
+    });
+
+    let stdout = "", stderr = "";
+    pythonProcess.stdout.on("data", data => { stdout += data.toString(); });
+    pythonProcess.stderr.on("data", data => { stderr += data.toString(); });
+
+    pythonProcess.on("close", code => {
+      if (code === 0) {
+        res.json({ message: "模型下載成功", output: stdout });
+      } else {
+        res.status(500).json({ message: "模型下載失敗", error: stderr });
+      }
+    });
+
+  } catch (err) {
+    console.error("downloadModel error:", err);
+    res.status(500).json({ message: "伺服器錯誤", error: err.message });
+  }
+};
+
+// 下載關鍵人物資訊（json）
+exports.downloadProfile = async (req, res) => {
+  const { fileName } = req.body;
+
+  if (!fileName) {
+    return res.status(400).json({ message: "缺少 fileName 參數" });
+  }
+
+  try {
+    const args = ["scripts/download_profile.py", "--file-name", fileName];
+    const pythonProcess = spawn("python", args, {
+      cwd: process.cwd(),
+    });
+
+    let stdout = "", stderr = "";
+    pythonProcess.stdout.on("data", data => { stdout += data.toString(); });
+    pythonProcess.stderr.on("data", data => { stderr += data.toString(); });
+
+    pythonProcess.on("close", code => {
+      if (code === 0) {
+        res.json({ message: "profile 下載成功", output: stdout });
+      } else {
+        res.status(500).json({ message: "profile 下載失敗", error: stderr });
+      }
+    });
+
+  } catch (err) {
+    console.error("downloadProfile error:", err);
+    res.status(500).json({ message: "伺服器錯誤", error: err.message });
+  }
+};
+
+// 下載人物記憶描述（txt）
+exports.downloadMemory = async (req, res) => {
+  const { fileName } = req.body;
+
+  if (!fileName) {
+    return res.status(400).json({ message: "缺少 fileName 參數" });
+  }
+
+  try {
+    const args = ["scripts/download_memory.py", "--file-name", fileName];
+    const pythonProcess = spawn("python", args, {
+      cwd: process.cwd(),
+    });
+
+    let stdout = "", stderr = "";
+    pythonProcess.stdout.on("data", data => { stdout += data.toString(); });
+    pythonProcess.stderr.on("data", data => { stderr += data.toString(); });
+
+    pythonProcess.on("close", code => {
+      if (code === 0) {
+        res.json({ message: "記憶下載成功", output: stdout });
+      } else {
+        res.status(500).json({ message: "記憶下載失敗", error: stderr });
+      }
+    });
+
+  } catch (err) {
+    console.error("downloadMemory error:", err);
+    res.status(500).json({ message: "伺服器錯誤", error: err.message });
+  }
+};
+
+// 寫入檔名
+exports.writeIndex = async (req, res) => {
+  const { fileName } = req.body;
+
+  if (!fileName) {
+    return res.status(400).json({ message: "缺少 fileName 參數" });
+  }
+
+  try {
+    const args = ["scripts/write_index.py", "--file-name", fileName];
+    const pythonProcess = spawn("python", args, {
+      cwd: process.cwd()
+    });
+
+    let stdout = "", stderr = "";
+    pythonProcess.stdout.on("data", data => { stdout += data.toString(); });
+    pythonProcess.stderr.on("data", data => { stderr += data.toString(); });
+
+    pythonProcess.on("close", code => {
+      if (code === 0) {
+        res.json({ message: "index.txt 寫入成功", output: stdout });
+      } else {
+        res.status(500).json({ message: "index.txt 寫入失敗", error: stderr });
+      }
+    });
+
+  } catch (err) {
+    console.error("writeIndex error:", err);
+    res.status(500).json({ message: "伺服器錯誤", error: err.message });
   }
 };

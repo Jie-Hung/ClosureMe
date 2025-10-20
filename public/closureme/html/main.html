@@ -16,17 +16,14 @@
 <body>
   <header class="top-bar">
     <div class="logo">
-      <img src="../../assets/icons/logo.png" class="logo-img">
-      <img src="../../assets/icons/help.png" id="helpBtn" class="help-icon">
-      <button id="logoutBtn" class="logout-btn">登出</button>
+      <img src="../../assets/icons/raw (4).png" class="logo-img">
+      <button id="logoutBtn" class="logout-btn">返回首頁</button>
     </div>
   </header>
 
   <main class="main-container">
-    <!-- 顯示區（翻轉卡片） -->
     <section class="display-area"></section>
 
-    <!-- 人物與場景選擇區 -->
     <section class="select-area">
       <div class="select-group">
         <div class="select-header">人物選擇 <span id="char-count">0/3</span></div>
@@ -39,25 +36,24 @@
       </div>
 
       <button id="imageBtn" class="image-btn">🛠️ 初始模型</button>
-      <button id="generateBtn" class="generate-btn">▶ 開始生成</button>
+      <button id="skeletonBtn" class="skeleton-btn" onclick="window.open('https://www.mixamo.com/#/', '_blank');">🦴
+        製作骨架</button>
       <button id="filesBtn" class="files-btn" onclick="location.href='files.html'">📁 檔案管理</button>
+      <button id="generateBtn" class="generate-btn">▶ 開始生成</button>
 
     </section>
   </main>
 
-  <!-- guide modal -->
   <div id="guideModal" class="modal">
     <div class="modal-content" id="guideContent"></div>
   </div>
 
-  <!-- Upload Modal -->
   <div id="uploadModal" class="upload-modal">
     <div class="upload-content">
       <h2 id="upload-title">圖片上傳 1/3</h2>
 
       <div class="upload-main">
         <div id="upload-step-content">
-          <!-- 這裡動態插入內容（Dropzone / Textarea / 檔案清單） -->
         </div>
       </div>
 
@@ -68,14 +64,12 @@
     </div>
   </div>
 
-  <!-- 圖片預覽 Modal -->
   <div id="previewModal" class="modal">
     <div class="modal-content preview-modal-content">
       <img id="previewImg" src="" alt="預覽圖片" />
     </div>
   </div>
 
-  <!-- 檔案命名視窗 -->
   <div class="filename-modal" id="filenameModal" style="display: none;">
     <div class="filename-content">
       <h3>請輸入檔案名稱</h3>
@@ -87,7 +81,6 @@
     </div>
   </div>
 
-  <!--完整記憶視窗-->
   <div id="descModal" class="desc-modal">
     <div class="modal-content">
       <span class="close-btn">&times;</span>
@@ -95,17 +88,14 @@
     </div>
   </div>
 
-  <!-- ✅ 分割圖片 Modal -->
   <div id="splitModal" class="modal" style="display: none;">
     <div class="modal-box">
-      <!-- 主圖片與紅線 -->
       <div class="split-image-area">
         <canvas id="splitCanvas"></canvas>
         <div id="splitCutLine" class="split-line"></div>
         <div id="splitPercent" class="split-percent">50%</div>
       </div>
 
-      <!-- 預覽 -->
       <div class="split-preview-container">
         <div>
           <strong>上半部（Head）</strong>
@@ -117,7 +107,6 @@
         </div>
       </div>
 
-      <!-- 工具列 -->
       <div class="split-toolbar">
         <span>800 × 450</span>
         <div class="button-group">

@@ -7,7 +7,8 @@ function showToast(message, type = "info") {
     toast.style.backgroundColor =
         type === "success" ? "#28a745" :
             type === "error" ? "#dc3545" :
-                "#333";
+                type === "info" ? "#17a2b8" :
+                    "#333";
 
     toast.classList.add("show");
 
@@ -15,3 +16,4 @@ function showToast(message, type = "info") {
         toast.classList.remove("show");
     }, 2000);
 }
+window.showToast = showToast;

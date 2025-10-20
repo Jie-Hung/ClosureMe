@@ -45,7 +45,7 @@ for img in images:
     upload_batch = img["upload_batch"]
 
     if os.path.exists(local_path):
-        print(f"⚠️ 已存在本地，略過下載：{file_name}")
+        print(f"⚠️  已存在本地，略過下載：{file_name}")
         skipped_count += 1
         continue
 

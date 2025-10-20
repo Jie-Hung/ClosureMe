@@ -1,9 +1,40 @@
 // controllers/closureme/fileController.js
-const fs = require("fs").promises;
+const fs = require("fs");
+const path = require("path");
 const pool = require("../../models/db");
-const { renameFileOnS3, deleteFileOnS3 } = require("../../storage");
+const { renameFileOnS3, deleteFileOnS3 } = require("../../../public/utils/storage");
 
-// 只讓「有模型」的角色出現在清單（仍保留此條件）
+function toKey(p) {
+  try {
+    return decodeURIComponent(new URL(p).pathname.replace(/^\/+/, ""));
+  } catch {
+    return decodeURIComponent(String(p).replace(/^\/+/, ""));
+  }
+}
+
+function deleteLocalFilesContainingName(baseName) {
+  const foldersToScan = [
+    "C:/NewProject/test/memory",
+    "C:/NewProject/test/profile",
+  ];
+
+  for (const folderPath of foldersToScan) {
+    try {
+      const files = fs.readdirSync(folderPath);
+      for (const file of files) {
+        if (file.includes(baseName)) {
+          const fullPath = path.join(folderPath, file);
+          fs.unlinkSync(fullPath);
+          console.log(`已刪除本機檔案：${fullPath}`);
+        }
+      }
+    } catch (err) {
+      console.error(`無法處理資料夾 ${folderPath}：${err.message}`);
+    }
+  }
+}
+
+// 只讓「有模型」的角色出現在清單
 exports.getFiles = async (req, res) => {
   const userId = req.user_id;
   const addV = (url, v) => (url ? `${url}${url.includes('?') ? '&' : '?'}v=${encodeURIComponent(v)}` : null);
@@ -11,47 +42,53 @@ exports.getFiles = async (req, res) => {
 
   try {
     const { rows } = await pool.query(`
-      SELECT
-        ci.id            AS image_id,
-        ci.upload_batch,
-        ci.file_name,
-        ci.file_path     AS image_path,
-        cp.file_path     AS profile_path,
-        cmem.file_path   AS memory_path,
-        ci.uploaded_at
+      SELECT ci.id AS image_id,
+             ci.upload_batch,
+             ci.file_name,
+             ci.file_path AS image_path,
+             cp.file_path AS profile_path,
+             cmem.file_path AS memory_path,
+             ci.uploaded_at
       FROM char_images ci
+
       LEFT JOIN LATERAL (
-        SELECT p.file_path FROM char_profile p
+        SELECT p.file_path
+        FROM char_profile p
         WHERE p.image_id = ci.id
         ORDER BY p.id DESC NULLS LAST
         LIMIT 1
       ) cp ON TRUE
+
       LEFT JOIN LATERAL (
-        SELECT m.file_path FROM char_memory m
+        SELECT m.file_path
+        FROM char_memory m
         WHERE m.image_id = ci.id
         ORDER BY m.id DESC NULLS LAST
         LIMIT 1
       ) cmem ON TRUE
+
       LEFT JOIN LATERAL (
-        SELECT mo.file_path FROM char_model mo
+        SELECT mo.file_path
+        FROM char_model mo
         WHERE mo.image_id = ci.id
         ORDER BY mo.id DESC NULLS LAST
         LIMIT 1
       ) cmodel ON TRUE
+
       WHERE ci.user_id = $1
         AND ci.role_type = 'main'
         AND cmodel.file_path IS NOT NULL
-      ORDER BY ci.uploaded_at DESC
+      ORDER BY ci.uploaded_at DESC;
     `, [userId]);
 
     const files = rows.map(r => ({
-      image_id:     r.image_id,
+      image_id: r.image_id,
       upload_batch: r.upload_batch,
-      file_name:    r.file_name,
-      image_path:   addV(r.image_path,  r.uploaded_at || Date.now()),
+      file_name: r.file_name,
+      image_path: addV(r.image_path, r.uploaded_at || Date.now()),
       profile_path: addV(r.profile_path, r.uploaded_at || Date.now()),
-      memory_path:  addV(r.memory_path,  r.uploaded_at || Date.now()),
-      uploaded_at:  r.uploaded_at,
+      memory_path: addV(r.memory_path, r.uploaded_at || Date.now()),
+      uploaded_at: r.uploaded_at,
     }));
 
     res.status(200).json({ message: "取得成功", data: files });
@@ -61,38 +98,42 @@ exports.getFiles = async (req, res) => {
   }
 };
 
-// 首頁角色清單：同樣只顯示「有模型」的角色（不回傳 voice/model 欄位）
+// 首頁角色清單：只顯示「有模型」的角色（不回傳 voice/model 欄位）
 exports.getMainList = async (req, res) => {
   const userId = req.user_id;
   if (!userId) return res.status(401).json({ message: "未授權存取" });
 
   try {
     const { rows } = await pool.query(`
-      SELECT
-        ci.file_name,
-        ci.file_path     AS image_path,
-        cp.file_path     AS profile_path,
-        cmem.file_path   AS memory_path,
-        ci.uploaded_at
+      SELECT ci.id AS image_id,
+             ci.file_name,
+             ci.file_path AS image_path,
+             cp.file_path AS profile_path,
+             cmem.file_path AS memory_path,
+             ci.uploaded_at
       FROM char_images ci
+
       LEFT JOIN LATERAL (
         SELECT p.file_path FROM char_profile p
         WHERE p.image_id = ci.id
         ORDER BY p.id DESC NULLS LAST
         LIMIT 1
       ) cp ON TRUE
+
       LEFT JOIN LATERAL (
         SELECT m.file_path FROM char_memory m
         WHERE m.image_id = ci.id
         ORDER BY m.id DESC NULLS LAST
         LIMIT 1
       ) cmem ON TRUE
+
       LEFT JOIN LATERAL (
         SELECT mo.file_path FROM char_model mo
         WHERE mo.image_id = ci.id
         ORDER BY mo.id DESC NULLS LAST
         LIMIT 1
       ) cmodel ON TRUE
+
       WHERE ci.user_id = $1
         AND ci.role_type = 'main'
         AND cmodel.file_path IS NOT NULL
@@ -106,27 +147,23 @@ exports.getMainList = async (req, res) => {
   }
 };
 
-
-
-
-
-// 取得所有主圖（供 1/5 綁定模型使用）
-// - 回傳 has_model 旗標，前端可只顯示「尚未綁定」或灰掉已綁定
+// 取得所有主圖
 exports.getMainImagesForBinding = async (req, res) => {
   const userId = req.user_id;
   if (!userId) return res.status(401).json({ message: "未授權存取" });
 
   try {
     const { rows } = await pool.query(`
-      SELECT
-        ci.id               AS image_id,
-        ci.file_name,
-        ci.file_path        AS image_path,
-        ci.upload_batch,
-        ci.uploaded_at,
-        EXISTS (
-          SELECT 1 FROM char_model m WHERE m.image_id = ci.id
-        ) AS has_model
+      SELECT ci.id AS image_id,
+             ci.file_name,
+             ci.file_path AS image_path,
+             ci.upload_batch,
+             ci.uploaded_at,
+             EXISTS (
+                SELECT 1 
+                FROM char_model m 
+                WHERE m.image_id = ci.id
+            ) AS has_model
       FROM char_images ci
       WHERE ci.user_id = $1
         AND ci.role_type = 'main'
@@ -140,11 +177,11 @@ exports.getMainImagesForBinding = async (req, res) => {
   }
 };
 
-// 刪除角色（保留原有行為：會把 profile/memory/voice/model 一起刪）
 // 刪除角色（會把 profile/memory/voice/model + main/head/body 一併刪）
 exports.deleteCharacter = async (req, res) => {
   const { fileName, uploadBatch } = req.body;
   const userId = req.user_id;
+
   if (!fileName && !uploadBatch) {
     return res.status(400).json({ message: "缺少參數（需 fileName 或 uploadBatch）" });
   }
@@ -153,44 +190,45 @@ exports.deleteCharacter = async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // 取得要刪的「基底名」列表（不含副檔名）
     let bases = [];
     if (fileName) {
-      bases = [fileName.replace(/\.[^.]+$/, "")];
+      bases = [fileName.replace(/\.[^.]+$/, "").split("_")[0]];
     } else {
       const r0 = await client.query(`
-        SELECT file_name, role_type
+        SELECT file_name
         FROM char_images
-        WHERE user_id=$1 AND upload_batch=$2
+        WHERE user_id = $1 AND upload_batch = $2
       `, [userId, uploadBatch]);
 
       if (!r0.rowCount) {
         await client.query("ROLLBACK");
         return res.status(404).json({ message: "查無此批次圖片" });
       }
-      // 取每張圖片的「去尾綴」基底
-      bases = [...new Set(
-        r0.rows.map(({ file_name }) =>
-          file_name.replace(/\.[^.]+$/, "").replace(/_(head|body)$/i, "")
-        )
-      )];
+
+      bases = [
+        ...new Set(
+          r0.rows.map(({ file_name }) =>
+            file_name.replace(/\.[^.]+$/, "").split("_")[0]
+          )
+        ),
+      ];
     }
 
-    // 把 main/head/body 都一起抓出來（去掉 _head/_body 後比對）
     const { rows: images } = await client.query(`
       SELECT id, file_path
       FROM char_images
       WHERE user_id = $1
-        AND regexp_replace(split_part(file_name,'.',1), '_(head|body)$', '', 'i') = ANY($2)
+        AND split_part(split_part(file_name, '.', 1), '_', 1) = ANY($2)
     `, [userId, bases]);
 
     if (!images.length) {
       await client.query("ROLLBACK");
       return res.status(404).json({ message: "查無此角色圖片" });
     }
-    const imageIds = images.map(i => i.id);
 
-    const metaRes = await client.query(`
+    const imageIds = images.map((i) => i.id);
+
+    const { rows: metaRows } = await client.query(`
       SELECT file_path FROM char_profile WHERE image_id = ANY($1)
         UNION ALL
       SELECT file_path FROM char_memory WHERE image_id = ANY($1)
@@ -200,17 +238,15 @@ exports.deleteCharacter = async (req, res) => {
       SELECT file_path FROM char_model   WHERE image_id = ANY($1)
     `, [imageIds]);
 
-    // 先刪 S3 檔案
     for (const img of images) {
-      const key = new URL(img.file_path).pathname.replace(/^\/+/, "");
+      const key = toKey(img.file_path);
       await deleteFileOnS3(key);
     }
-    for (const m of metaRes.rows) {
-      const key = new URL(m.file_path).pathname.replace(/^\/+/, "");
+    for (const m of metaRows) {
+      const key = toKey(m.file_path);
       await deleteFileOnS3(key);
     }
 
-    // 再刪 DB
     await client.query(`DELETE FROM char_profile WHERE image_id = ANY($1)`, [imageIds]);
     await client.query(`DELETE FROM char_memory  WHERE image_id = ANY($1)`, [imageIds]);
     await client.query(`DELETE FROM char_voice   WHERE image_id = ANY($1)`, [imageIds]);
@@ -218,17 +254,21 @@ exports.deleteCharacter = async (req, res) => {
     await client.query(`DELETE FROM char_images  WHERE id       = ANY($1)`, [imageIds]);
 
     await client.query("COMMIT");
-    res.json({ message: "刪除完成" });
+
+    for (const base of bases) {
+      deleteLocalFilesContainingName(base);
+    }
+
+    return res.json({ message: "刪除完成（含本機相關檔案）" });
   } catch (e) {
     await client.query("ROLLBACK");
-    console.error("❌ deleteCharacter error:", e);
-    res.status(500).json({ message: "刪除失敗", error: e.message });
+    console.error("刪除失敗:", e);
+    return res.status(500).json({ message: "刪除失敗", error: e.message });
   } finally {
     client.release();
   }
 };
 
-// 重新命名（維持原有行為；如需連動模型檔名，可再加）
 // 重新命名（連同 model 一起）
 exports.renameCharacter = async (req, res) => {
   const { uploadBatch, newName, fileName } = req.body;
@@ -237,39 +277,47 @@ exports.renameCharacter = async (req, res) => {
     return res.status(400).json({ message: "缺少參數（需 uploadBatch 或 fileName，且需 newName）" });
   }
 
+  const keyFromUrl = (p) => {
+    try { return decodeURIComponent(new URL(p).pathname.replace(/^\/+/, "")); }
+    catch { return decodeURIComponent(String(p).replace(/^\/+/, "")); }
+  };
+  const sanitizeBase = (s) =>
+    String(s).trim()
+      .replace(/\s+/g, "_")
+      .replace(/%[0-9A-Fa-f]{2}/g, "")
+      .replace(/[^\w\-\u4e00-\u9fa5()]/g, "")
+      .replace(/_+/g, "_");
+
+  const baseNew = sanitizeBase(newName);
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    // 取得「基底名」列表
     let bases = [];
     if (fileName) {
-      bases = [fileName.replace(/\.[^.]+$/, "")];
+      const base = fileName.replace(/\.[^.]+$/, "").split("_")[0];
+      bases = [base];
     } else {
       const r0 = await client.query(`
         SELECT file_name
         FROM char_images
         WHERE user_id=$1 AND upload_batch=$2
       `, [userId, uploadBatch]);
-
       if (!r0.rowCount) {
         await client.query("ROLLBACK");
         return res.status(404).json({ message: "找不到此批次圖片" });
       }
-
       bases = [...new Set(
-        r0.rows.map(({ file_name }) =>
-          file_name.replace(/\.[^.]+$/, "").replace(/_(head|body)$/i, "")
-        )
+        r0.rows.map(({ file_name }) => file_name.replace(/\.[^.]+$/, "").split("_")[0])
       )];
     }
 
-    // 先找出所有 main/head/body
     const { rows: images } = await client.query(`
       SELECT id, file_name, file_path, role_type
       FROM char_images
       WHERE user_id=$1
-        AND regexp_replace(split_part(file_name,'.',1), '_(head|body)$', '', 'i') = ANY($2)
+        AND split_part(split_part(file_name, '.', 1), '_', 1) = ANY($2)
     `, [userId, bases]);
 
     if (!images.length) {
@@ -277,13 +325,20 @@ exports.renameCharacter = async (req, res) => {
       return res.status(404).json({ message: "找不到要重新命名的圖片" });
     }
 
-    // 逐一改 S3 + DB
     for (const img of images) {
-      const oldKey = new URL(img.file_path).pathname.replace(/^\/+/, "");
+      const oldKey = keyFromUrl(img.file_path);
+
       const ext = oldKey.match(/\.[a-zA-Z0-9]+$/)?.[0] || ".png";
-      const newFileName = (img.role_type && img.role_type !== "main")
-        ? `${newName}_${img.role_type}${ext}`
-        : `${newName}${ext}`;
+
+      const basePart = oldKey.replace(/^uploads\//, "").replace(/\.[^.]+$/, "");
+      const parts = basePart.split("_");
+      const suffix = parts.length > 1 ? parts.slice(1).join("_") : ""; // 001 / head / body...
+
+      let newFileName;
+      if (suffix) newFileName = `${baseNew}_${suffix}${ext}`;
+      else if (img.role_type && img.role_type !== "main") newFileName = `${baseNew}_${img.role_type}${ext}`;
+      else newFileName = `${baseNew}${ext}`;
+
       const newKey = `uploads/${newFileName}`;
 
       await renameFileOnS3(oldKey, newKey);
@@ -297,27 +352,27 @@ exports.renameCharacter = async (req, res) => {
       );
     }
 
-    // 找出這些圖片對應的 meta（含 model），一併改名
     const imageIds = images.map(i => i.id);
     const metaRes = await client.query(`
       SELECT 'profile' AS kind, id, file_path FROM char_profile WHERE image_id = ANY($1)
         UNION ALL
-      SELECT 'memory'  AS kind, id, file_path FROM char_memory WHERE image_id = ANY($1)
+      SELECT 'memory' AS kind, id, file_path FROM char_memory WHERE image_id = ANY($1)
         UNION ALL
-      SELECT 'voice'   AS kind, id, file_path FROM char_voice   WHERE image_id = ANY($1)
+      SELECT 'voice'  AS kind, id, file_path FROM char_voice  WHERE image_id = ANY($1)
         UNION ALL
-      SELECT 'model'   AS kind, id, file_path FROM char_model   WHERE image_id = ANY($1)
+      SELECT 'model'  AS kind, id, file_path FROM char_model  WHERE image_id = ANY($1)
     `, [imageIds]);
 
     for (const m of metaRes.rows) {
-      const oldKey = new URL(m.file_path).pathname.replace(/^\/+/, "");
+      const oldKey = keyFromUrl(m.file_path);
+
       const ext = oldKey.match(/\.[a-zA-Z0-9]+$/)?.[0] ||
         (m.kind === "voice" ? ".wav" :
-         m.kind === "profile" || m.kind === "memory" ? ".json" : ".fbx");
+          m.kind === "profile" || m.kind === "memory" ? ".json" : ".fbx");
 
       const newKey = (m.kind === "model")
-        ? `uploads/${newName}${ext}`                // 模型：newName.fbx|glb|gltf
-        : `uploads/${newName}_${m.kind}${ext}`;    // 其他：newName_profile.json 等
+        ? `uploads/${baseNew}${ext}`
+        : `uploads/${baseNew}_${m.kind}${ext}`;
 
       await renameFileOnS3(oldKey, newKey);
 
@@ -345,4 +400,3 @@ exports.renameCharacter = async (req, res) => {
     client.release();
   }
 };
-
