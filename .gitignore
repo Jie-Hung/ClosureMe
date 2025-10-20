@@ -9,3 +9,9 @@ local_data_utf8.sql
 function/
 config.json
 test/
+backup.sql
+test.sql
+schema.sql
+schema_clean.sql
+full_schema.sql
+render.yaml
